@@ -66,12 +66,18 @@ fetch_naep <- function(subject = OUTCOME_SUBJECT,
 
   require_cols(res, c("year", "jurisdiction", "value"), "NAEP Data Service")
 
+  ## Bind to locals first: `res` has its own `subject`/`grade` columns (coded
+  ## "MAT", not "mathematics"), and inside transmute() those data columns mask
+  ## the function arguments of the same name.
+  subj <- subject
+  grd  <- as.integer(grade)
+
   tibble::as_tibble(res) |>
     dplyr::transmute(
       jurisdiction = as.character(jurisdiction),
       year         = as.integer(year),
-      subject      = subject,
-      grade        = as.integer(grade),
+      subject      = subj,
+      grade        = grd,
       score        = suppressWarnings(as.numeric(value)),
       error_flag   = if ("errorFlag" %in% names(res)) errorFlag else NA
     ) |>

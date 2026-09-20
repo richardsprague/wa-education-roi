@@ -17,22 +17,53 @@ suppressPackageStartupMessages({
   library(tidyr)
 })
 
-## F-33 lags NAEP; the portal's coverage ends a couple of years short of the
-## current NAEP administration. Adjust upward as Urban publishes new years.
-FINANCE_YEARS <- 2003:2022
+## F-33 lags NAEP; the portal's coverage ends short of the current NAEP
+## administration. Verified 2026-09-20 against the portal's own endpoint
+## metadata ("1991, 1994-2020") and confirmed empirically: 2021 returns
+## "not a valid year for the requested endpoint". Adjust upward as Urban
+## publishes new years.
+##
+## Consequence for the panel: NAEP runs to 2024 but finance stops at 2020, so
+## align_finance_to_naep() carries 2020 forward to NAEP 2022 (within its
+## maxgap = 2) and leaves NAEP 2024 with no finance data.
+FINANCE_YEARS <- 2003:2020
 
 #' Pull one year of district finance and collapse to state totals.
-fetch_finance_year <- function(year) {
-  df <- educationdata::get_education_data(
-    level  = "school-districts",
-    source = "ccd",
-    topic  = "finance",
-    filters = list(year = year)
-  )
+#'
+#' The portal paginates these queries (~18k districts x ~160 fields per year)
+#' and intermittently 404s an individual page under load, which surfaces as
+#' "Query page not found" for a year that succeeds on the next attempt. Retry
+#' before treating it as a real coverage gap.
+fetch_finance_year <- function(year, tries = 3) {
+  df <- NULL
+  for (attempt in seq_len(tries)) {
+    df <- tryCatch(
+      educationdata::get_education_data(
+        level  = "school-districts",
+        source = "ccd",
+        topic  = "finance",
+        filters = list(year = year)
+      ),
+      error = function(e) {
+        cli::cli_alert_warning(
+          "CCD finance {year}: attempt {attempt}/{tries} failed ({conditionMessage(e)})"
+        )
+        NULL
+      }
+    )
+    if (!is.null(df)) break
+    if (attempt < tries) Sys.sleep(2^attempt)
+  }
+  if (is.null(df)) {
+    cli::cli_abort(c(
+      "CCD finance {year} failed after {tries} attempts.",
+      "i" = "If this year fails persistently, it is outside portal coverage; narrow FINANCE_YEARS."
+    ))
+  }
 
   require_cols(
     df,
-    c("fips", "year", "rev_total", "exp_current_instruction", "enrollment_fall_responsible"),
+    c("fips", "year", "rev_total", "exp_current_instruction_total", "enrollment_fall_responsible"),
     sprintf("Urban CCD finance %d", year)
   )
 
@@ -41,7 +72,7 @@ fetch_finance_year <- function(year) {
     ## any_of() rather than c() so a year missing an optional field does not abort.
     dplyr::mutate(dplyr::across(
       dplyr::any_of(c("rev_total", "rev_state_total", "rev_local_total",
-                      "rev_fed_total", "exp_total", "exp_current_instruction",
+                      "rev_fed_total", "exp_total", "exp_current_instruction_total",
                       "enrollment_fall_responsible")),
       ~ dplyr::if_else(as.numeric(.x) < 0, NA_real_, as.numeric(.x))
     )) |>
@@ -57,15 +88,19 @@ fetch_finance_year <- function(year) {
     )
 }
 
+#' Build the multi-year finance panel, caching each year separately so that a
+#' failure late in the loop does not discard the years already fetched.
 build_finance_panel <- function(years = FINANCE_YEARS, refresh = FALSE) {
-  cache_rds(
-    key = "ccd_finance_state",
-    expr = purrr::map_dfr(years, function(y) {
-      cli::cli_alert_info("CCD finance: {y}")
-      fetch_finance_year(y)
-    }),
-    refresh = refresh
-  )
+  purrr::map_dfr(years, function(y) {
+    cache_rds(
+      key = sprintf("ccd_finance_%d", y),
+      expr = {
+        cli::cli_alert_info("CCD finance: {y}")
+        fetch_finance_year(y)
+      },
+      refresh = refresh
+    )
+  })
 }
 
 #' Attach USPS abbreviations and compute per-pupil measures.

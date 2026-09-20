@@ -22,10 +22,24 @@ suppressPackageStartupMessages({
 })
 
 #' Annual CPI-U from FRED's public CSV endpoint (no key required).
+#'
+#' FRED gates this endpoint on User-Agent: it serves curl's default UA over
+#' both HTTP/1.1 and HTTP/2, but hangs on any custom UA, which surfaces in R as
+#' either "HTTP/2 stream not closed cleanly" or a bare timeout. Verified
+#' 2026-09-20 by holding the protocol fixed and varying only the UA. So we
+#' fetch through httr2 with a curl-style UA rather than readr's URL reader.
 fetch_cpi <- function(refresh = FALSE) {
   cache_rds("cpi_u", refresh = refresh, expr = {
     url <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL"
-    raw <- readr::read_csv(url, show_col_types = FALSE)
+    resp <- httr2::request(url) |>
+      httr2::req_user_agent("curl/8.7.1") |>
+      httr2::req_retry(max_tries = 3, backoff = ~ 2^.x) |>
+      httr2::req_timeout(60) |>
+      httr2::req_perform()
+    raw <- readr::read_csv(I(httr2::resp_body_string(resp)), show_col_types = FALSE)
+    if (ncol(raw) != 2) {
+      cli::cli_abort("FRED returned {ncol(raw)} columns; expected 2 (date, value).")
+    }
     names(raw) <- c("date", "cpi")
     raw |>
       dplyr::mutate(year = as.integer(format(as.Date(date), "%Y"))) |>
@@ -43,7 +57,10 @@ fetch_rpp <- function(refresh = FALSE) {
       utils::download.file(zip_url, zip_path, mode = "wb", quiet = FALSE)
     }
     files <- utils::unzip(zip_path, list = TRUE)$Name
-    target <- grep("SARPP1", files, value = TRUE)[1]
+    ## BEA names this member by table and coverage span, e.g.
+    ## "SARPP_STATE_2008_2024.csv" -- not "SARPP1". The span moves each
+    ## release, so match the stem and let the years float.
+    target <- grep("^SARPP_STATE.*\\.csv$", files, value = TRUE)[1]
     if (is.na(target)) {
       cli::cli_abort(c(
         "Could not find the SARPP1 table inside {.path SARPP.zip}.",
@@ -61,6 +78,41 @@ load_cwift <- function() {
   if (!file.exists(path)) return(NULL)
   cli::cli_alert_success("Using CWIFT from {.path data/raw/cwift.csv}")
   readr::read_csv(path, show_col_types = FALSE)
+}
+
+#' Extend the place index backward to cover pre-treatment years.
+#'
+#' BEA RPP begins in 2008, but the panel starts at PRE_START (2003), and three
+#' of the five pre-treatment NAEP years (2003, 2005, 2007) fall before RPP
+#' coverage. Without this, build_deflators()'s join silently drops those years
+#' and fit_synth() is left with two pre-periods and aborts.
+#'
+#' We carry each state's earliest observed index backward. Relative state price
+#' levels are highly persistent -- Alabama moves only 88.9 to 89.1 across
+#' 2008-2024 -- so this is a mild assumption, but it IS an assumption about
+#' three of five pre-treatment periods. Rows so filled are flagged
+#' `place_imputed` so downstream code and the methodology notes can see them.
+backfill_place_index <- function(place, first_year = PRE_START) {
+  earliest <- min(place$year, na.rm = TRUE)
+  place <- dplyr::mutate(place, place_imputed = FALSE)
+  if (first_year >= earliest) return(place)
+
+  base <- place |>
+    dplyr::filter(year == earliest) |>
+    dplyr::select(state, place_index)
+
+  filler <- tidyr::expand_grid(
+    year = seq.int(first_year, earliest - 1L),
+    base
+  ) |>
+    dplyr::mutate(place_imputed = TRUE)
+
+  cli::cli_alert_warning(
+    "Place index carried back from {earliest} to cover {first_year}-{earliest - 1L}."
+  )
+
+  dplyr::bind_rows(place, filler) |>
+    dplyr::arrange(state, year)
 }
 
 #' Build a state-year deflator table: real dollars in BASE_YEAR, cost-adjusted.
@@ -92,6 +144,8 @@ build_deflators <- function(base_year = 2019L, refresh = FALSE) {
       dplyr::filter(!is.na(state)) |>
       dplyr::select(state, year, place_index)
   }
+
+  place <- backfill_place_index(place, first_year = PRE_START)
 
   cpi |>
     dplyr::mutate(time_deflator = base_cpi / cpi) |>
