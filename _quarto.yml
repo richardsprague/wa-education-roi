@@ -1,0 +1,38 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - notes/methodology.qmd
+
+website:
+  title: "What Did McCleary Buy?"
+  description: "A synthetic-control estimate of Washington's school finance reform"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Analysis
+      - href: notes/methodology.qmd
+        text: Methodology
+  page-footer:
+    center: "Source and data pipeline: github.com/richardsprague/wa-education-roi"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    fig-width: 8
+    fig-height: 5
+    df-print: kable
+    embed-resources: false
+
+execute:
+  freeze: auto
+  warning: false
+  message: false
+
+bibliography: references.bib
+citation-location: document

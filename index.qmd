@@ -1,0 +1,215 @@
+---
+title: "What Did McCleary Buy?"
+subtitle: "A synthetic-control estimate of Washington's school finance reform"
+author: "Richard Sprague"
+date: today
+---
+
+```{r setup}
+#| include: false
+source(here::here("R", "00_config.R"))
+source(here::here("R", "utils.R"))
+source(here::here("R", "04_build_panel.R"))
+source(here::here("R", "05_synth.R"))
+source(here::here("R", "06_plots.R"))
+
+panel <- build_analysis_panel()
+fits  <- run_all(panel)
+inf   <- synth_inference(fits$score)
+```
+
+## The question
+
+Between the 2009–11 and 2019–21 biennia, Washington's state spending on K–12
+education rose 110%, while all other state spending rose 52% [@wrc2020mccleary].
+Over the same period the state's standing on the National Assessment of
+Educational Progress did not improve relative to the rest of the country. In
+grade 8 mathematics Washington led the national public average by 5 points in
+2003 and by 2 points in 2024.
+
+Those two facts are usually deployed as a rhetorical pair. They should not be.
+Three things have to be settled before they can be compared at all:
+
+1. **How much money actually reached schools per student?** The 110% figure
+   measures the state budget line. McCleary's central mechanism was a levy
+   swap — the state assumed obligations previously met by local levies — so a
+   large share of that growth is a change in *who writes the check*, not in how
+   much is written. Total revenue per pupil rose 49.7% over 2010–11 to 2018–19,
+   with state sources up 81.6% and local sources down 0.3%.
+2. **What were those dollars worth?** Nominal per-pupil growth has to be
+   deflated twice: once for inflation, once for the fact that Puget Sound labor
+   got more expensive relative to the rest of the country over the same decade.
+3. **Compared to what?** Washington's post-2019 scores fell. So did everyone's.
+   The counterfactual is not "Washington in 2011"; it is "Washington had the
+   legislature not responded to McCleary."
+
+This project answers the third question with a synthetic control, and carries
+the first two through the data pipeline so the resource measure being tested is
+one that a skeptic would accept.
+
+## Data
+
+```{r panel-summary}
+#| label: tbl-panel
+#| tbl-cap: "Analysis panel coverage"
+panel |>
+  dplyr::summarise(
+    States = dplyr::n_distinct(state),
+    `NAEP years` = dplyr::n_distinct(year),
+    `First year` = min(year),
+    `Last year` = max(year),
+    Observations = dplyr::n()
+  )
+```
+
+Three sources, all public, all pulled by script:
+
+| Source | Series | Access |
+|---|---|---|
+| NAEP Data Service (NCES) | State mean scale scores, grade 8 math | `R/01_fetch_naep.R` |
+| Census F-33 / CCD via Urban Institute | Revenue and expenditure per pupil | `R/02_fetch_finance.R` |
+| BEA Regional Price Parities; CPI-U | Place and time deflators | `R/03_price_adjust.R` |
+
+Every API pull is validated against hand-transcribed published figures in
+`data/cache/naep_verified_anchors.csv` before the analysis runs
+(`make test`). This guards against the failure mode where an upstream schema
+change silently returns a different series and the analysis keeps running.
+
+### The spending series, deflated
+
+```{r fig-spending}
+#| label: fig-spending
+#| fig-cap: "Washington per-pupil revenue, nominal and deflated"
+plot_spending(panel)
+```
+
+```{r tbl-spending}
+#| label: tbl-spending
+#| tbl-cap: "Washington per-pupil revenue by NAEP year"
+panel |>
+  dplyr::filter(state == TREAT_UNIT) |>
+  dplyr::transmute(
+    Year = year,
+    `Nominal $/pupil` = round(rev_pp),
+    `Real, cost-adj. $/pupil` = round(rev_pp_real),
+    `State share of revenue` = scales::percent(state_share, accuracy = 0.1)
+  )
+```
+
+## Design
+
+Synthetic control [@abadie2010synthetic] constructs a weighted combination of
+untreated states that tracks Washington's pre-2013 outcome path, then asks
+whether Washington diverges from that combination afterward.
+
+Treatment is dated to **2013**, the first NAEP administration after the January
+2012 ruling. The money phased in through 2019, so the estimated effect is a
+dose that grows over the post-period rather than a clean step.
+
+The donor pool excludes states with their own major finance-reform shocks in
+2008–2022 — `r paste(EXCLUDE_DONORS, collapse = ", ")` — which leaves
+`r length(donor_states(panel))` donors. That exclusion list is the most
+contestable input in this analysis; `notes/methodology.qmd` reports how much it
+matters.
+
+## Results
+
+### First stage: did the money actually move?
+
+A finance reform that does not change real resources cannot be tested for
+effects on achievement. This is the check that the treatment exists.
+
+```{r fig-first-stage}
+#| label: fig-first-stage
+#| fig-cap: "Real cost-adjusted revenue per pupil: Washington vs synthetic Washington"
+plot_trends(
+  fits$money,
+  title = "Washington did buy something",
+  subtitle = "Real, cost-of-living-adjusted revenue per pupil against a synthetic control built from untreated states",
+  y_lab = "Revenue per pupil (2019 $, cost-adjusted)"
+)
+```
+
+### Outcome: NAEP grade 8 mathematics
+
+```{r fig-outcome}
+#| label: fig-outcome
+#| fig-cap: "NAEP grade 8 math: Washington vs synthetic Washington"
+plot_trends(
+  fits$score,
+  title = "Observed and synthetic Washington",
+  subtitle = "Grade 8 mathematics mean scale score"
+)
+```
+
+```{r fig-gap}
+#| label: fig-gap
+#| fig-cap: "Estimated effect: observed minus synthetic"
+plot_gap(
+  fits$score,
+  title = "Estimated effect of the McCleary response on grade 8 math",
+  subtitle = "Positive values mean Washington outperformed its synthetic counterfactual"
+)
+```
+
+### Inference
+
+```{r fig-placebo}
+#| label: fig-placebo
+#| fig-cap: "Placebo distribution"
+plot_placebos(
+  fits$score,
+  title = "Washington's gap against every donor state's placebo gap",
+  subtitle = "If Washington's line is unremarkable inside the gray band, the estimate is indistinguishable from noise"
+)
+```
+
+```{r tbl-inference}
+#| label: tbl-inference
+#| tbl-cap: "Post/pre RMSPE ratios, ranked"
+inf$table |> head(12)
+```
+
+Washington's post/pre RMSPE ratio is `r round(inf$rmspe_ratio, 2)`, ranking
+`r inf$rank` of `r nrow(inf$table)` units, giving a placebo-based
+*p* = `r round(inf$p_value, 3)`.
+
+::: {.callout-important}
+## Read the inference before the point estimate
+
+With five pre-treatment periods, the donor pool can fit almost any path, and
+the placebo test has little power. A null here is weak evidence of no effect,
+not evidence of a null effect. The 2022 and 2024 observations are also
+contaminated by pandemic disruption that varied across states in ways the
+pre-2013 fit cannot absorb. Treat the 2019 observation as the only clean
+post-treatment point, and treat the whole exercise as a bound on how large an
+effect could have gone undetected.
+:::
+
+## What this can and cannot settle
+
+**It can** establish whether Washington's achievement diverged from comparable
+states after a large, court-forced, mostly non-progressive resource increase —
+and how large an effect the data could have hidden.
+
+**It cannot** tell you whether money works in general. The best-identified
+evidence that school spending raises achievement comes from reforms that
+targeted low-income districts [@jackson2016effects; @lafortune2018school].
+McCleary was substantially uniform, and the accompanying levy cap partly
+redistributed *away from* high-levy districts. A null for McCleary is
+consistent with progressive finance reform working elsewhere.
+
+**It cannot** evaluate the article's actual claim — that Washington's weak
+spots are pre-K access and college completion, neither of which the
+constitutional guarantee covers. That is a separate design, and the outcome
+data for it is worse.
+
+## Reproducing
+
+```bash
+make docker-build   # pinned R + Quarto image
+make all            # fetch -> test -> render
+```
+
+See `notes/methodology.qmd` for specification checks and `README.md` for the
+data-refresh cadence.

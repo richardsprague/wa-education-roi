@@ -1,0 +1,109 @@
+---
+title: "Methodology and specification checks"
+---
+
+```{r setup}
+#| include: false
+source(here::here("R", "00_config.R"))
+source(here::here("R", "utils.R"))
+source(here::here("R", "04_build_panel.R"))
+source(here::here("R", "05_synth.R"))
+source(here::here("R", "06_plots.R"))
+panel <- build_analysis_panel()
+```
+
+## Decisions a reviewer should attack
+
+Every one of these is a knob in `R/00_config.R`.
+
+### 1. Treatment date
+
+`TREAT_YEAR <- 2013`. Defensible alternatives: 2012 (ruling), 2015 (first
+substantial appropriations), 2019 (full phase-in). The later the date, the fewer
+post-periods remain and the more the pandemic dominates them.
+
+```{r alt-treat}
+#| label: tbl-alt-treat
+#| tbl-cap: "Sensitivity to treatment date"
+purrr::map_dfr(c(2013, 2015, 2017), function(ty) {
+  sc <- fit_synth(panel, "score", treat_year = ty)
+  s  <- synth_inference(sc)
+  tibble::tibble(
+    `Treatment year` = ty,
+    `RMSPE ratio` = round(s$rmspe_ratio, 2),
+    `Rank` = s$rank,
+    `p` = round(s$p_value, 3)
+  )
+})
+```
+
+### 2. Donor pool exclusions
+
+The exclusion list encodes a judgment about which states had their own
+concurrent finance shocks. Here is the same estimate with no exclusions at all.
+
+```{r alt-donors}
+#| label: tbl-alt-donors
+#| tbl-cap: "Sensitivity to donor-pool exclusions"
+all_donors <- setdiff(unique(panel$state), c(TREAT_UNIT, NON_STATES))
+sc_all <- fit_synth(panel, "score", donors = all_donors)
+s_all  <- synth_inference(sc_all)
+
+tibble::tibble(
+  Specification = c("Excluding reform states", "All states as donors"),
+  `Donors` = c(length(donor_states(panel)), length(all_donors)),
+  `RMSPE ratio` = c(round(synth_inference(fit_synth(panel, "score"))$rmspe_ratio, 2),
+                    round(s_all$rmspe_ratio, 2)),
+  `p` = c(round(synth_inference(fit_synth(panel, "score"))$p_value, 3),
+          round(s_all$p_value, 3))
+)
+```
+
+### 3. Pre-period length
+
+`PRE_START <- 2003` buys a balanced panel at the cost of five pre-periods.
+Setting it to 1996 adds pre-periods but drops states that did not participate in
+state NAEP before NCLB. Rerun with `PRE_START <- 1996` and compare donor counts.
+
+### 4. The place deflator
+
+BEA Regional Price Parities measure the cost of a consumption basket. What a
+school district actually faces is the *wage* of college-educated labor in its
+market, which is what NCES's Comparable Wage Index for Teachers (CWIFT)
+measures. CWIFT is the better instrument and is not API-served; drop
+`data/raw/cwift.csv` in place and `R/03_price_adjust.R` prefers it
+automatically. Expect the adjustment to be larger under CWIFT than under RPP,
+because Puget Sound tech wages pull teacher-comparable wages up faster than they
+pull the consumption basket up.
+
+### 5. Donor weights
+
+```{r weights}
+#| label: tbl-weights
+#| tbl-cap: "Unit weights in the synthetic control"
+fit_synth(panel, "score") |>
+  tidysynth::grab_unit_weights() |>
+  dplyr::filter(weight > 0.01) |>
+  dplyr::arrange(dplyr::desc(weight)) |>
+  dplyr::mutate(weight = round(weight, 3))
+```
+
+A synthetic control that leans on two or three donors is fragile. If the table
+above is concentrated, report the estimate as illustrative rather than
+inferential.
+
+## Known threats to validity
+
+- **Interference.** NAEP is a common instrument; there is no spillover from
+  Washington's budget to other states. SUTVA is plausible here, unusually.
+- **Anticipation.** Districts may have adjusted before 2013 in expectation of
+  the ruling, which would bias toward zero.
+- **Compositional change.** Washington's English-learner and low-income shares
+  moved over the window. NAEP scores are not demographically adjusted here.
+  The Urban Institute publishes demographically adjusted state NAEP; swapping
+  that in as the outcome is the single highest-value extension.
+- **Pandemic confounding.** 2022 and 2024 reflect state-varying school closure
+  duration, which correlates with politics and is not absorbed by pre-2013 fit.
+  Washington closed longer than the median state, which would bias the estimate
+  *downward* and is the strongest reason not to read the post-2020 gap as a
+  McCleary effect.
