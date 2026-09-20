@@ -9,6 +9,10 @@ figures/*
 # Quarto / R
 /.quarto/
 _site/
+# Quarto's freeze cache: regenerable render output, same rule as figures/
+# and data/processed/. Drop this line if you'd rather ship it so the site
+# can be rebuilt without re-running the ~30 min data pull.
+_freeze/
 *_files/
 *_cache/
 .Rproj.user/
@@ -20,3 +24,5 @@ renv/staging/
 
 # OS
 .DS_Store
+
+**/*.quarto_ipynb
