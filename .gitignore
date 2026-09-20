@@ -1,0 +1,22 @@
+# Data: raw pulls and derived artifacts are reproducible from scripts
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+figures/*
+!figures/.gitkeep
+
+# Quarto / R
+/.quarto/
+_site/
+*_files/
+*_cache/
+.Rproj.user/
+.Rhistory
+.RData
+.Renviron
+renv/library/
+renv/staging/
+
+# OS
+.DS_Store
