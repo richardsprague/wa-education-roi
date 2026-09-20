@@ -1,0 +1,11 @@
+services:
+  analysis:
+    build: .
+    image: wa-education-roi:latest
+    working_dir: /project
+    volumes:
+      - .:/project
+    environment:
+      # Optional: BEA API key, if you prefer the API over the bulk RPP download.
+      - BEA_API_KEY=${BEA_API_KEY:-}
+    command: make all
