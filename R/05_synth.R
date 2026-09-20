@@ -50,20 +50,26 @@ fit_synth <- function(panel,
       i_unit  = TREAT_UNIT,
       i_time  = treat_year,
       generate_placebos = TRUE
-    ) |>
-    ## Pre-period mean of the outcome.
-    tidysynth::generate_predictor(
-      time_window = pre_years,
-      outcome_pre_mean = mean(outcome, na.rm = TRUE)
-    ) |>
-    ## Resources, in real cost-adjusted dollars.
-    tidysynth::generate_predictor(
-      time_window = pre_years,
-      rev_pp_pre_mean = mean(rev_pp_real, na.rm = TRUE),
-      state_share_pre_mean = mean(state_share, na.rm = TRUE)
     )
 
+  ## NOTE: resources are deliberately NOT matching predictors.
+  ##
+  ## With five pre-treatment periods the predictor matrix can identify at
+  ## most five predictors; adding rev_pp_pre_mean and state_share_pre_mean on
+  ## top of five outcome lags makes kernlab's interior-point solver singular
+  ## (verified 2026-09-20: 7 predictors fails, 5 succeeds, and rescaling the
+  ## dollar variables does not help -- it is the count, not the units).
+  ##
+  ## This is also the canonical Abadie specification. Real cost-adjusted
+  ## revenue is the *treatment mechanism*, estimated separately as the first
+  ## stage in run_all(), not a covariate the donor pool must match on.
+
   ## Individual pre-period outcome lags, which is what actually drives fit.
+  ##
+  ## Deliberately NOT accompanied by a pre-period mean of the outcome: the mean
+  ## is an exact linear combination of these lags, and including both makes the
+  ## predictor matrix singular ("system is computationally singular" out of
+  ## solve() inside the optimizer).
   for (y in pre_years) {
     nm <- paste0("outcome_", y)
     out <- tidysynth::generate_predictor(
@@ -102,8 +108,19 @@ run_all <- function(panel) {
   cli::cli_h2("Outcome: NAEP grade 8 math")
   sc_score <- fit_synth(panel, "score")
 
+  ## First stage. F-33 coverage stops at 2020 and align_finance_to_naep()
+  ## cannot carry it as far as NAEP 2022/2024 (the NA run is longer than its
+  ## maxgap), so rev_pp_real is missing in those two years for every state.
+  ## Restrict this fit to the years where the outcome is actually observed
+  ## rather than handing NAs to the optimizer; the panel stays balanced
+  ## because the missingness is all-or-nothing by year.
+  money_panel <- dplyr::filter(panel, !is.na(rev_pp_real))
+  money_years <- sort(unique(money_panel$year))
   cli::cli_h2("First stage: real cost-adjusted revenue per pupil")
-  sc_money <- fit_synth(panel, "rev_pp_real")
+  cli::cli_alert_info(
+    "Restricted to {min(money_years)}-{max(money_years)} (finance coverage)."
+  )
+  sc_money <- fit_synth(money_panel, "rev_pp_real")
 
   list(score = sc_score, money = sc_money)
 }
