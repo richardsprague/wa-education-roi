@@ -120,12 +120,17 @@ and to dropping the donor exclusions entirely (p = 0.720).
 - **Three of five pre-treatment periods use an imputed place deflator.** BEA RPP
   begins in 2008, so 2003–2007 carry each state's 2008 index backward. Affected
   rows are flagged `place_imputed`.
-- **The prose revenue figures in `index.qmd` do not match the pipeline.** The
-  text reports local revenue per pupil down 0.3% from 2010–11 to 2018–19; the
-  F-33 district aggregation computes +15.1% (and total +55.5% against a stated
-  +49.7%). The levy cap took effect in SY2019-20, after the 2019 F-33 year,
-  which likely explains it — but the discrepancy is unresolved and the
-  levy-swap framing rests on it.
+- **Two data sources disagree about local revenue, and the document says so.**
+  The Washington Research Council, using OSPI's F-196, reports local taxes per
+  pupil down 0.3% from SY 2010–11 to SY 2018–19. The Census F-33 series this
+  pipeline uses puts local revenue per pupil up 15.1% over the same years, with
+  local property tax alone up 14.9%. Two candidate explanations were tested and
+  both fail: it is not a definition question about which local receipts count
+  (property tax alone moves the same as the local total), and it is not a
+  year-alignment artifact (the 20.4% single-year levy-cap drop WRC reports
+  appears nowhere in F-33, whose largest drop is 7.7%). The sources agree on
+  totals and on the direction of the levy swap. Neither estimate here depends
+  on the local series.
 
 ## Reproducibility
 

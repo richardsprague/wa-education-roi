@@ -16,13 +16,26 @@ source(here::here("R", "06_plots.R"))
 panel <- build_analysis_panel()
 fits  <- run_all(panel)
 inf   <- synth_inference(fits$score)
+
+## Washington 2011 -> 2019 growth as the F-33 pipeline computes it, for the
+## comparison against the OSPI figures quoted in "The question".
+f33 <- local({
+  d <- dplyr::filter(panel, state == TREAT_UNIT, year %in% c(2011, 2019))
+  pc <- function(col) 100 * (d[[col]][2] / d[[col]][1] - 1)
+  list(
+    total      = pc("rev_pp"),
+    state      = pc("rev_state_pp"),
+    local      = pc("rev_local_pp"),
+    share_2011 = 100 * d$state_share[1],
+    share_2019 = 100 * d$state_share[2]
+  )
+})
 ```
 
-## Background: a constitutional promise, and what it cost to keep
+## The constitutional promise
 
-Washington's constitution opens its education article with an unusually strong
-commitment — 34 words that the Seattle Times' Dahlia Bazzaz calls the state's
-"North Star" [@bazzaz2026paramount]:
+Washington's constitution opens its education article with 34 words that have
+shaped the state's education policy ever since [@bazzaz2026paramount]:
 
 > It is the paramount duty of the state to make ample provision for the
 > education of all children residing within its borders without distinction or
@@ -36,11 +49,11 @@ Court found the underfunding so severe that it held the legislature in contempt
 and **fined the state $100,000 a day for three years** until lawmakers
 appropriated the money.
 
-They did. K–12 became the largest single item in the state budget. Washington
-now has smaller class sizes, some of the highest teacher pay in the country,
-and per-student spending just above the national average.
+The Legislature appropriated it, and K–12 became the largest single item in
+the state budget, buying smaller class sizes, some of the highest teacher pay
+in the country, and per-student spending just above the national average.
 
-### What the money bought, and the question that follows
+### What the money bought
 
 Bazzaz's survey of the results is careful and, on achievement, muted.
 Washington performs slightly ahead of the nation in NAEP reading and roughly at
@@ -61,7 +74,7 @@ doesn't get — for its substantial investment." **This repo is an attempt to
 answer one narrow, quantitative slice of that question with an explicit
 counterfactual rather than a before-and-after comparison.**
 
-The narrowing matters, and it cuts against the headline. This analysis can say
+The narrowing matters. This analysis can say
 something about grade 8 mathematics, because NAEP provides a comparable
 measure across states. It cannot evaluate the two areas where Bazzaz finds
 Washington genuinely lagging — preschool access, where the state ranks 7th in
@@ -70,7 +83,7 @@ its six-year rate of 56.5% is among the nation's worst. Both fall outside the
 constitutional guarantee, and neither has outcome data that supports this
 design.
 
-## What NAEP is, and why the outcome is a scale score
+## What NAEP measures
 
 The **National Assessment of Educational Progress** — "The Nation's Report
 Card" — is a federally administered test given to a *representative sample* of
@@ -117,10 +130,32 @@ Three things have to be settled before they can be compared at all:
 
 1. **How much money actually reached schools per student?** The 110% figure
    measures the state budget line. McCleary's central mechanism was a levy
-   swap — the state assumed obligations previously met by local levies — so a
-   large share of that growth is a change in *who writes the check*, not in how
-   much is written. Total revenue per pupil rose 49.7% over 2010–11 to 2018–19,
-   with state sources up 81.6% and local sources down 0.3%.
+   swap — the state assumed obligations previously met by local levies — so
+   some share of that growth is a change in *who writes the check*, not in how
+   much is written. Using OSPI's district accounting, the Washington Research
+   Council reports that from SY 2010–11 to SY 2018–19 total per-pupil revenues
+   rose 49.7%, state per-pupil revenues rose 81.6%, and local taxes per pupil
+   fell 0.3% [@wrc2020mccleary].
+
+   The pipeline behind this document does not reproduce that last figure. It
+   uses the Census F-33 survey rather than OSPI's F-196, and over the same
+   years F-33 puts Washington's local revenue per pupil
+   **up `r sprintf("%.1f%%", f33$local)`**, with local property tax alone up
+   14.9% — not flat, and not falling. The two sources agree closely on the
+   totals (F-33 gives `r sprintf("%+.1f%%", f33$total)` total and
+   `r sprintf("%+.1f%%", f33$state)` state) and on the direction of the levy
+   swap: state share of revenue rises about
+   `r round(f33$share_2019 - f33$share_2011)` points in F-33
+   (`r sprintf("%.1f%%", f33$share_2011)` to `r sprintf("%.1f%%", f33$share_2019)`)
+   and about 14 in OSPI (64.6% to 78.4%). They disagree on local revenue in
+   sign, not just magnitude. The
+   disagreement is not a definitional one about which local receipts count, and
+   not a year-alignment artifact; both were checked. It is a genuine difference
+   between two federal and state collections, and it is left visible here
+   rather than resolved by picking the more convenient number. Nothing in the
+   estimates below depends on it: the outcome model uses NAEP scores only, and
+   the first stage uses total revenue, where the sources agree.
+
 2. **What were those dollars worth?** Nominal per-pupil growth has to be
    deflated twice: once for inflation, once for the fact that Puget Sound labor
    got more expensive relative to the rest of the country over the same decade.
@@ -183,7 +218,7 @@ panel |>
 
 ## Design
 
-### The problem: one state, no control group
+### One state, no control group
 
 The obvious way to evaluate McCleary is to compare Washington before and after.
 That fails immediately, because 2022 and 2024 scores fell across the entire
@@ -198,7 +233,7 @@ having picked it to get the answer you wanted.
 to choose. Instead of one comparison state, it builds a weighted average of
 many, with the weights chosen by an explicit rule rather than by the analyst.
 
-### What "synthetic Washington" actually is
+### What synthetic Washington is
 
 Synthetic Washington is a **weighted average of other states' NAEP scores**,
 where the weights are picked so that the weighted average tracks Washington's
@@ -256,7 +291,7 @@ funding overhaul is not an untreated comparison. That exclusion list is the
 most contestable input in this analysis; `notes/methodology.qmd` reports how
 much it matters, and the short answer is: almost none.
 
-### How to tell whether a gap means anything: placebo tests
+### Placebo tests
 
 With one treated unit there is no sampling distribution and no standard error
 in the usual sense. A gap of four points between Washington and its synthetic
@@ -388,13 +423,13 @@ relative to what would otherwise have happened.
 **The achievement gain is absent.** Washington's grade 8 math scores diverge
 from synthetic Washington by an average of
 **`r round(wa_abs_gap, 2)` scale points** across the post-treatment period. The
-median untreated state diverges by **`r round(placebo_median, 2)` points**.
-Washington is, to two decimal places, an ordinary state pretending nothing
-happened. Its post/pre RMSPE ratio ranks `r inf$rank` of `r nrow(inf$table)`
+median untreated state diverges by `r round(placebo_median, 2)` points, which
+is the same number to within a rounding error. Its post/pre RMSPE ratio ranks
+`r inf$rank` of `r nrow(inf$table)`
 (*p* = `r round(inf$p_value, 3)`), and the result holds whether treatment is
 dated 2013, 2015, or 2017, and whether or not the donor exclusions are applied.
 
-### How large an effect could have hidden here?
+### How large an effect could have hidden?
 
 This is the question that separates "no effect" from "no power to see one," and
 it deserves a number rather than a caveat.
@@ -417,10 +452,9 @@ So the honest statement has two halves, and both are firm:
   test. If that is the size of the true effect, this design was never going to
   find it, and neither will any other design built on state-level NAEP.
 
-What this analysis will not do is convert the second half into the first.
-"Undetectable at this resolution" is not "zero," and a reader who wants
-McCleary vindicated cannot find vindication here either: there is no positive
-result to point at.
+Undetectable at this resolution is not the same as zero, and a reader hoping
+to find McCleary vindicated here will not find that either, because there is no
+positive result to point at.
 
 ::: {.callout-important}
 ## Three things that constrain the verdict
@@ -459,11 +493,11 @@ consistent with progressive finance reform working elsewhere.
 **It cannot** evaluate what Bazzaz identifies as Washington's actual weak
 spots — preschool access and postsecondary completion
 [@bazzaz2026paramount], neither of which the constitutional guarantee covers.
-Those need a different design, and the outcome data for them is worse. It is
-worth sitting with the possibility that the paramount-duty clause has done
-exactly what it was read to require, funding K–12 to the point where marginal
-dollars there buy little, while the parts of a child's education with the
-weakest measured results are the parts the clause never reached.
+Those need a different design, and the outcome data for them is worse. One
+reading of all this is that the paramount-duty clause did exactly what it was
+interpreted to require, funding K–12 to the point where additional dollars
+there buy little, while the parts of a child's education with the weakest
+measured results are the parts the clause never reached.
 
 ## Reproducing
 
