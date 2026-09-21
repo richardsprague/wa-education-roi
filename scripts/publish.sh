@@ -2,7 +2,7 @@
 # Hand the rendered site to the existing publish-web.sh workflow.
 #
 #   export PUBLISH_WEB_SH=~/dev/scripts/publish-web.sh
-#   export PUBLISH_WEB_TARGET=richardsprague.com/wa-education-roi
+#   export PUBLISH_WEB_TARGET=richardsprague.com/docs/policy/education
 #   make publish
 #
 # If PUBLISH_WEB_SH is unset, this prints what it would do and exits cleanly,
@@ -12,7 +12,7 @@ set -euo pipefail
 
 SITE_DIR="${SITE_DIR:-_site}"
 PUBLISH_WEB_SH="${PUBLISH_WEB_SH:-}"
-PUBLISH_WEB_TARGET="${PUBLISH_WEB_TARGET:-richardsprague.com/wa-education-roi}"
+PUBLISH_WEB_TARGET="${PUBLISH_WEB_TARGET:-richardsprague.com/docs/policy/education}"
 
 if [[ ! -d "$SITE_DIR" ]]; then
   echo "error: $SITE_DIR not found -- run 'make render' first." >&2
