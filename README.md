@@ -5,6 +5,9 @@ Did Washington's McCleary school-finance response buy measurable achievement?
 A reproducible synthetic-control study. Public data, scripted pulls, pinned
 container, Quarto output.
 
+**Read it here: <https://richardsprague.com/docs/policy/education/>**
+([methodology](https://richardsprague.com/docs/policy/education/notes/methodology.html))
+
 ## The claim under test
 
 Washington's state K–12 spending rose 110% from the 2009–11 to the 2019–21
@@ -144,14 +147,20 @@ CRAN snapshot date and `tests/test_anchors.R` are.
 
 ## Publishing
 
-`make publish` renders and hands `_site/` to `publish-web.sh`. Point it at your
+The rendered site lives at
+<https://richardsprague.com/docs/policy/education/>.
+
+`make publish` renders and hands `_site/` to `publish-web.sh`, which is not in
+this repo -- it holds the host and account for the upload. Point it at your own
 script:
 
 ```bash
 export PUBLISH_WEB_SH=~/dev/scripts/publish-web.sh
-export PUBLISH_WEB_TARGET=richardsprague.com/wa-education-roi
 make publish
 ```
+
+`PUBLISH_WEB_TARGET` defaults to `richardsprague.com/docs/policy/education`;
+override it to publish elsewhere.
 
 ## License
 
