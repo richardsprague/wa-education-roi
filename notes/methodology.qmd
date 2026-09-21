@@ -22,7 +22,7 @@ Every one of these is a knob in `R/00_config.R`.
 substantial appropriations), 2019 (full phase-in). The later the date, the fewer
 post-periods remain and the more the pandemic dominates them.
 
-```{r alt-treat}
+```{r}
 #| label: tbl-alt-treat
 #| tbl-cap: "Sensitivity to treatment date"
 purrr::map_dfr(c(2013, 2015, 2017), function(ty) {
@@ -42,7 +42,7 @@ purrr::map_dfr(c(2013, 2015, 2017), function(ty) {
 The exclusion list encodes a judgment about which states had their own
 concurrent finance shocks. Here is the same estimate with no exclusions at all.
 
-```{r alt-donors}
+```{r}
 #| label: tbl-alt-donors
 #| tbl-cap: "Sensitivity to donor-pool exclusions"
 all_donors <- setdiff(unique(panel$state), c(TREAT_UNIT, NON_STATES))
@@ -78,7 +78,7 @@ pull the consumption basket up.
 
 ### 5. Donor weights
 
-```{r weights}
+```{r}
 #| label: tbl-weights
 #| tbl-cap: "Unit weights in the synthetic control"
 fit_synth(panel, "score") |>

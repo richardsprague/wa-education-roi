@@ -21,7 +21,10 @@ make all             # fetch data, validate against published figures, render
 open _site/index.html
 ```
 
-Without Docker, on a local R 4.4 install:
+> **On Apple Silicon, `make docker-build` fails** — the base image is amd64
+> only. Use the local route below, or see Reproducibility.
+
+Without Docker, on a local R 4.4 or later install:
 
 ```bash
 Rscript -e 'install.packages(readLines("dependencies.txt"))'
@@ -66,14 +69,73 @@ fails rather than producing a plausible-looking wrong answer.
 
 ## Status
 
-**The R pipeline has not been executed end to end.** It was written against the
-published API documentation but not run, because the authoring environment had
-neither R nor outbound network access to these hosts. Expect to fix field names
-on the first run — `require_cols()` is designed to tell you exactly which ones.
-The NAEP Data Service query string is the most likely thing to need adjusting.
+**Executed end to end on 2026-09-20** (R 4.6.1, arm64 macOS, outside the pinned
+container — see Reproducibility below). `make test` passes 10/10, `make render`
+builds the site. The first run turned up seven defects, all of them schema drift
+or numerical conditioning rather than analysis logic:
 
-The verified figures in `data/cache/naep_verified_anchors.csv` *are* confirmed
-against published sources and can be trusted independently of the pipeline.
+- The NAEP response carries its own `subject` column coded `"MAT"`, which masked
+  the function argument inside `transmute()`, so the anchor join matched nothing.
+- Urban's finance field is `exp_current_instruction_total`.
+- The portal intermittently 404s a page under load; the multi-year pull is now
+  cached per year and retried.
+- F-33 coverage ends at 2020, not 2022.
+- FRED gates `fredgraph.csv` on User-Agent — it serves curl's default but hangs
+  on any custom one, which is why R failed where the `curl` binary worked.
+- The BEA zip member is `SARPP_STATE_2008_2024.csv`, not `SARPP1`.
+- The predictor set was unidentifiable: a pre-period outcome mean is an exact
+  linear combination of the outcome lags, and seven predictors against five
+  pre-treatment periods is singular regardless of scaling.
+
+The verified figures in `data/cache/naep_verified_anchors.csv` are confirmed
+against published sources and can be trusted independently of the pipeline. The
+API now matches all eight grade-8 math anchors within 0.33 points.
+
+### What it finds
+
+The panel is balanced: 50 states, 11 NAEP years, 39 donors, 550 observations.
+Pre-treatment fit is within ±0.96 scale points.
+
+**The money is real.** After correcting for the levy swap, inflation, and
+regional price levels, Washington sits **$3,065 per pupil above synthetic
+Washington by 2019** (rank 4 of 40, p = 0.10). The objection that McCleary was
+merely a change in who writes the check does not survive the correction.
+
+**The achievement effect is not detectable.** Post-treatment gaps in grade 8
+math run +3.9, +2.6, +4.1, +0.9 through 2019, then negative in 2022 and 2024 —
+but the RMSPE ratio is 3.72, ranking Washington **33rd of 40** (Fisher
+p = 0.825). Thirty-two donor states show a larger post/pre ratio when falsely
+treated. The null is robust to treatment date (p = 0.650 at 2015, 0.775 at 2017)
+and to dropping the donor exclusions entirely (p = 0.720).
+
+### Read this before citing the estimate
+
+- **Five pre-periods make this a weak test.** p = 0.825 means "cannot
+  distinguish from placebo noise", not "proven null".
+- **The donor pool is concentrated.** Synthetic Washington is 63% South Dakota,
+  90% in its top three donors. By the standard set in `notes/methodology.qmd`,
+  the estimate should be read as illustrative rather than inferential.
+- **2022 and 2024 are COVID-confounded** and should not be read as McCleary
+  effects.
+- **Three of five pre-treatment periods use an imputed place deflator.** BEA RPP
+  begins in 2008, so 2003–2007 carry each state's 2008 index backward. Affected
+  rows are flagged `place_imputed`.
+- **The prose revenue figures in `index.qmd` do not match the pipeline.** The
+  text reports local revenue per pupil down 0.3% from 2010–11 to 2018–19; the
+  F-33 district aggregation computes +15.1% (and total +55.5% against a stated
+  +49.7%). The levy cap took effect in SY2019-20, after the 2019 F-33 year,
+  which likely explains it — but the discrepancy is unresolved and the
+  levy-swap framing rests on it.
+
+## Reproducibility
+
+The pinned container does not currently build on Apple Silicon: `rocker/verse`
+is published for amd64 only. `rocker/r-ver` does ship arm64, but 4.4.1 is
+Ubuntu jammy, for which Posit's package manager has no arm64 binaries — only
+noble (24.04) does. The working options are to rebase the image on
+`rocker/r-ver:4.6.1` and install Quarto from its `linux-arm64.deb`, or to run
+natively as above. The R version is not the reproducibility lever here; the
+CRAN snapshot date and `tests/test_anchors.R` are.
 
 ## Publishing
 

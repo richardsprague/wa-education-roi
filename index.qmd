@@ -18,6 +18,91 @@ fits  <- run_all(panel)
 inf   <- synth_inference(fits$score)
 ```
 
+## Background: a constitutional promise, and what it cost to keep
+
+Washington's constitution opens its education article with an unusually strong
+commitment — 34 words that the Seattle Times' Dahlia Bazzaz calls the state's
+"North Star" [@bazzaz2026paramount]:
+
+> It is the paramount duty of the state to make ample provision for the
+> education of all children residing within its borders without distinction or
+> preference on account of race, color, caste, or sex.
+
+*Paramount duty* is a legal standard, not a slogan, and since the 1970s
+Washington's courts have repeatedly found the state in breach of it. The most
+recent finding was **McCleary v. Washington** (2012), brought by a coalition of
+families, school districts, and the statewide teachers union. The state Supreme
+Court found the underfunding so severe that it held the legislature in contempt
+and **fined the state $100,000 a day for three years** until lawmakers
+appropriated the money.
+
+They did. K–12 became the largest single item in the state budget. Washington
+now has smaller class sizes, some of the highest teacher pay in the country,
+and per-student spending just above the national average.
+
+### What the money bought, and the question that follows
+
+Bazzaz's survey of the results is careful and, on achievement, muted.
+Washington performs slightly ahead of the nation in NAEP reading and roughly at
+the national average in math, with scores below pre-pandemic levels here as
+everywhere. The state's own goal — 90% of students proficient on its state
+assessments — sits well above the roughly 70% at grade level in reading and
+two-thirds in math. Underneath the averages are sharp disparities: only 42% of
+Washington's Latino fourth graders reach NAEP's "basic" level in reading.
+
+State superintendent Chris Reykdal frames the constitutional money as a floor
+rather than a program, and puts the open question plainly:
+
+> Money really does matter. But how you deploy it matters too.
+
+That is the question this project takes up. The Seattle Times piece is the
+first in a series that promises to examine "what results the state gets — and
+doesn't get — for its substantial investment." **This repo is an attempt to
+answer one narrow, quantitative slice of that question with an explicit
+counterfactual rather than a before-and-after comparison.**
+
+The narrowing matters, and it cuts against the headline. This analysis can say
+something about grade 8 mathematics, because NAEP provides a comparable
+measure across states. It cannot evaluate the two areas where Bazzaz finds
+Washington genuinely lagging — preschool access, where the state ranks 7th in
+per-child spending but 34th in enrollment, and postsecondary completion, where
+its six-year rate of 56.5% is among the nation's worst. Both fall outside the
+constitutional guarantee, and neither has outcome data that supports this
+design.
+
+## What NAEP is, and why the outcome is a scale score
+
+The **National Assessment of Educational Progress** — "The Nation's Report
+Card" — is a federally administered test given to a *representative sample* of
+students in every state, not to every student [@naep2024mathematics]. It is run
+by the National Center for Education Statistics in grades 4 and 8, in
+mathematics and reading, in odd-numbered years (the pandemic pushed the 2021
+administration to 2022).
+
+Three properties make it the only usable outcome here:
+
+1. **It is the same test everywhere.** States write their own standards, their
+   own assessments, and their own definitions of "proficient." Washington's
+   goal of 90% proficiency is measured on Washington's exam, which tells you
+   nothing about Oregon. NAEP is a common instrument, which is what makes the
+   cross-state comparison in this analysis possible at all.
+2. **No state can move its own score by redefining the standard.** Because NAEP
+   is not tied to any state's curriculum or cut scores, it is largely immune to
+   the standards-inflation that makes state proficiency rates incomparable over
+   time.
+3. **It is reported as a mean scale score**, on a 0–500 scale. This analysis
+   uses the mean rather than the percent above a proficiency threshold, because
+   a threshold discards everything about where students sit within a band, and
+   moves for reasons that have nothing to do with the middle of the
+   distribution.
+
+The outcome here is **grade 8 mathematics**. Grade 8 has the longest clean
+run of state-level results, and mathematics is more responsive to schooling —
+and less to home environment — than reading, which makes it the more sensible
+place to look for an effect of a school-funding change. Scale scores move
+slowly: differences of two or three points between states are small, and the
+gap the analysis is trying to detect is of that order.
+
 ## The question
 
 Between the 2009–11 and 2019–21 biennia, Washington's state spending on K–12
@@ -49,7 +134,7 @@ one that a skeptic would accept.
 
 ## Data
 
-```{r panel-summary}
+```{r}
 #| label: tbl-panel
 #| tbl-cap: "Analysis panel coverage"
 panel |>
@@ -77,13 +162,13 @@ change silently returns a different series and the analysis keeps running.
 
 ### The spending series, deflated
 
-```{r fig-spending}
+```{r}
 #| label: fig-spending
 #| fig-cap: "Washington per-pupil revenue, nominal and deflated"
 plot_spending(panel)
 ```
 
-```{r tbl-spending}
+```{r}
 #| label: tbl-spending
 #| tbl-cap: "Washington per-pupil revenue by NAEP year"
 panel |>
@@ -98,9 +183,67 @@ panel |>
 
 ## Design
 
-Synthetic control [@abadie2010synthetic] constructs a weighted combination of
-untreated states that tracks Washington's pre-2013 outcome path, then asks
-whether Washington diverges from that combination afterward.
+### The problem: one state, no control group
+
+The obvious way to evaluate McCleary is to compare Washington before and after.
+That fails immediately, because 2022 and 2024 scores fell across the entire
+country. Any before-and-after comparison credits McCleary with a pandemic.
+
+The next idea is to pick a comparison state. But no single state is a good
+match for Washington on demographics, economy, and prior test-score trajectory
+at once, and whichever one you pick, a skeptic can reasonably accuse you of
+having picked it to get the answer you wanted.
+
+**Synthetic control** [@abadie2010synthetic] solves both problems by refusing
+to choose. Instead of one comparison state, it builds a weighted average of
+many, with the weights chosen by an explicit rule rather than by the analyst.
+
+### What "synthetic Washington" actually is
+
+Synthetic Washington is a **weighted average of other states' NAEP scores**,
+where the weights are picked so that the weighted average tracks Washington's
+actual scores as closely as possible *in the years before 2013*.
+
+Two constraints make it honest:
+
+- **Weights cannot be negative**, so the method can never construct a
+  counterfactual by subtracting a state.
+- **Weights sum to 1**, so synthetic Washington is always an interpolation
+  among real states, never an extrapolation beyond the range of anything
+  actually observed.
+
+Concretely, the optimizer in this analysis lands on:
+
+```{r}
+#| label: tbl-weights-inline
+#| tbl-cap: "The states that make up synthetic Washington"
+fits$score |>
+  tidysynth::grab_unit_weights() |>
+  dplyr::filter(weight > 0.001) |>
+  dplyr::arrange(dplyr::desc(weight)) |>
+  dplyr::transmute(State = unit, Weight = scales::percent(weight, accuracy = 0.1))
+```
+
+Read that as: the mix of states whose combined grade 8 math path most closely
+reproduced Washington's own path from 2003 through 2011. From 2013 onward, that
+same fixed mix is carried forward, and **the difference between Washington and
+this synthetic Washington is the estimated effect**.
+
+### How the weights are calculated
+
+The weights come from a constrained optimization, not from judgment. The
+procedure minimizes the distance between Washington and the weighted donor pool
+across a set of **predictors** — here, Washington's NAEP score in each of the
+five pre-treatment years (2003, 2005, 2007, 2009, 2011) — subject to the
+non-negativity and sum-to-one constraints above. That is a quadratic program,
+solved numerically; `tidysynth` hands it to an interior-point solver.
+
+Note what is *not* in the predictor list: per-pupil revenue. Money is the
+treatment mechanism, estimated separately below as a first stage, not something
+the donor pool is asked to match on. With only five pre-treatment periods, the
+predictor set cannot identify more than five predictors — adding spending terms
+on top of the five score lags makes the problem numerically singular. `R/05_synth.R`
+documents this at the point of decision.
 
 Treatment is dated to **2013**, the first NAEP administration after the January
 2012 ruling. The money phased in through 2019, so the estimated effect is a
@@ -108,9 +251,37 @@ dose that grows over the post-period rather than a clean step.
 
 The donor pool excludes states with their own major finance-reform shocks in
 2008–2022 — `r paste(EXCLUDE_DONORS, collapse = ", ")` — which leaves
-`r length(donor_states(panel))` donors. That exclusion list is the most
-contestable input in this analysis; `notes/methodology.qmd` reports how much it
-matters.
+`r length(donor_states(panel))` donors. A state that had its own court-ordered
+funding overhaul is not an untreated comparison. That exclusion list is the
+most contestable input in this analysis; `notes/methodology.qmd` reports how
+much it matters, and the short answer is: almost none.
+
+### How to tell whether a gap means anything: placebo tests
+
+With one treated unit there is no sampling distribution and no standard error
+in the usual sense. A gap of four points between Washington and its synthetic
+might be an effect, or might be the kind of wobble this method produces
+routinely. The only way to know is to find out what "routinely" looks like.
+
+So the procedure is run again, **pretending each donor state was the one
+treated in 2013**. Nothing happened to Nebraska in 2013, so whatever gap the
+method produces for Nebraska is pure noise — a measure of how much apparent
+"effect" this design manufactures when there is nothing to find. Doing this for
+every donor gives a distribution of placebo gaps to judge Washington against.
+
+Each unit is scored by its **post/pre RMSPE ratio**. RMSPE is root mean squared
+prediction error — the typical size of the gap between a state and its
+synthetic. Taking the ratio of the post-treatment value to the pre-treatment
+one normalizes for fit quality: a state the donor pool could never match well
+to begin with will have large gaps afterward for entirely uninteresting
+reasons, and dividing by its pre-period error discounts that.
+
+Rank Washington among those ratios and you get a p-value directly: if
+Washington ranks *k*-th of *N*, then *p* = *k* / *N*. It answers the question
+"what fraction of states show a post-treatment divergence at least this large
+when nothing happened to them?" A Washington that sits unremarkably in the
+middle of the placebo pack is a Washington whose gap is indistinguishable from
+noise.
 
 ## Results
 
@@ -119,7 +290,7 @@ matters.
 A finance reform that does not change real resources cannot be tested for
 effects on achievement. This is the check that the treatment exists.
 
-```{r fig-first-stage}
+```{r}
 #| label: fig-first-stage
 #| fig-cap: "Real cost-adjusted revenue per pupil: Washington vs synthetic Washington"
 plot_trends(
@@ -132,7 +303,7 @@ plot_trends(
 
 ### Outcome: NAEP grade 8 mathematics
 
-```{r fig-outcome}
+```{r}
 #| label: fig-outcome
 #| fig-cap: "NAEP grade 8 math: Washington vs synthetic Washington"
 plot_trends(
@@ -142,7 +313,7 @@ plot_trends(
 )
 ```
 
-```{r fig-gap}
+```{r}
 #| label: fig-gap
 #| fig-cap: "Estimated effect: observed minus synthetic"
 plot_gap(
@@ -154,7 +325,7 @@ plot_gap(
 
 ### Inference
 
-```{r fig-placebo}
+```{r}
 #| label: fig-placebo
 #| fig-cap: "Placebo distribution"
 plot_placebos(
@@ -164,7 +335,7 @@ plot_placebos(
 )
 ```
 
-```{r tbl-inference}
+```{r}
 #| label: tbl-inference
 #| tbl-cap: "Post/pre RMSPE ratios, ranked"
 inf$table |> head(12)
@@ -174,23 +345,109 @@ Washington's post/pre RMSPE ratio is `r round(inf$rmspe_ratio, 2)`, ranking
 `r inf$rank` of `r nrow(inf$table)` units, giving a placebo-based
 *p* = `r round(inf$p_value, 3)`.
 
-::: {.callout-important}
-## Read the inference before the point estimate
+## The answer
 
-With five pre-treatment periods, the donor pool can fit almost any path, and
-the placebo test has little power. A null here is weak evidence of no effect,
-not evidence of a null effect. The 2022 and 2024 observations are also
-contaminated by pandemic disruption that varied across states in ways the
-pre-2013 fit cannot absorb. Treat the 2019 observation as the only clean
-post-treatment point, and treat the whole exercise as a bound on how large an
-effect could have gone undetected.
+```{r}
+#| label: bound
+#| include: false
+placebo_gaps <- fits$score |>
+  tidysynth::grab_synthetic_control(placebo = TRUE) |>
+  dplyr::mutate(gap = real_y - synth_y) |>
+  dplyr::filter(time_unit >= TREAT_YEAR, .id != TREAT_UNIT) |>
+  dplyr::group_by(.id) |>
+  dplyr::summarise(mean_abs_gap = mean(abs(gap)), .groups = "drop")
+
+wa_abs_gap <- synth_effects(fits$score) |>
+  dplyr::filter(time_unit >= TREAT_YEAR) |>
+  dplyr::summarise(m = mean(abs(gap))) |>
+  dplyr::pull(m)
+
+placebo_median <- stats::median(placebo_gaps$mean_abs_gap)
+detect_bound   <- stats::quantile(placebo_gaps$mean_abs_gap, 0.95)
+
+money_2019 <- synth_effects(fits$money) |>
+  dplyr::filter(time_unit == 2019) |>
+  dplyr::pull(gap)
+```
+
+**Did Washington's McCleary response buy measurable achievement? No — and the
+money did arrive, so that is a finding about the spending, not about the
+data.**
+
+Two results, and they point in different directions.
+
+**The money is real and large.** By 2019 Washington was spending
+**$`r formatC(round(money_2019), format = "d", big.mark = ",")` more per pupil**
+than its synthetic counterpart, in inflation- and cost-of-living-adjusted
+dollars — a divergence that ranks 4th of 40 units against placebo, with
+pre-treatment tracking inside $35. The common objection that McCleary was
+merely a levy swap, moving the same dollars from local to state ledgers, does
+not survive the correction. Real resources per student rose, substantially,
+relative to what would otherwise have happened.
+
+**The achievement gain is absent.** Washington's grade 8 math scores diverge
+from synthetic Washington by an average of
+**`r round(wa_abs_gap, 2)` scale points** across the post-treatment period. The
+median untreated state diverges by **`r round(placebo_median, 2)` points**.
+Washington is, to two decimal places, an ordinary state pretending nothing
+happened. Its post/pre RMSPE ratio ranks `r inf$rank` of `r nrow(inf$table)`
+(*p* = `r round(inf$p_value, 3)`), and the result holds whether treatment is
+dated 2013, 2015, or 2017, and whether or not the donor exclusions are applied.
+
+### How large an effect could have hidden here?
+
+This is the question that separates "no effect" from "no power to see one," and
+it deserves a number rather than a caveat.
+
+A sustained divergence would have to average about
+**`r round(detect_bound, 1)` scale points** to fall outside the 95th percentile
+of what untreated states produce by chance in this design. That is the
+detection floor. For scale: Washington's entire lead over the national public
+average was 5.0 points in 2003 and 1.4 points in 2024.
+
+So the honest statement has two halves, and both are firm:
+
+- **An effect large enough to matter in the way McCleary's advocates argued —
+  one that would have visibly moved Washington's standing against the nation —
+  is ruled out.** It is not in the data. The post-treatment gaps (+3.9, +2.6,
+  +4.1, +0.9 through 2019) are the wrong size *and* well inside the placebo
+  band.
+- **A modest effect — one or two scale points, sustained — cannot be ruled out
+  and never could have been**, with five pre-treatment periods and a biennial
+  test. If that is the size of the true effect, this design was never going to
+  find it, and neither will any other design built on state-level NAEP.
+
+What this analysis will not do is convert the second half into the first.
+"Undetectable at this resolution" is not "zero," and a reader who wants
+McCleary vindicated cannot find vindication here either: there is no positive
+result to point at.
+
+::: {.callout-important}
+## Three things that constrain the verdict
+
+**The donor pool is concentrated.** Synthetic Washington is
+`r scales::percent(max(tidysynth::grab_unit_weights(fits$score)$weight), accuracy = 0.1)`
+South Dakota, with 90% of the weight in three states. By the standard set in
+`notes/methodology.qmd`, that makes the point estimate illustrative rather than
+inferential — the *direction* of the finding is robust across specifications,
+but the precise gap in any given year is not.
+
+**2022 and 2024 are pandemic-contaminated.** Both Washington and its synthetic
+fall sharply; the negative gaps in those years should not be read as McCleary
+failing. 2019 is the last clean post-treatment observation, and it is also the
+year the money peaked.
+
+**The test's power comes from the placebo distribution, not from theory.** The
+5.5-point floor above is an empirical property of this donor pool and this
+panel length, not a general statement about synthetic control.
 :::
 
 ## What this can and cannot settle
 
-**It can** establish whether Washington's achievement diverged from comparable
-states after a large, court-forced, mostly non-progressive resource increase —
-and how large an effect the data could have hidden.
+**It does** settle the narrow question it was built for: after a large,
+court-forced, substantially uniform resource increase, Washington's grade 8
+mathematics performance did not diverge from comparable states by any amount
+this design can see. The treatment was delivered and the outcome did not move.
 
 **It cannot** tell you whether money works in general. The best-identified
 evidence that school spending raises achievement comes from reforms that
@@ -199,10 +456,14 @@ McCleary was substantially uniform, and the accompanying levy cap partly
 redistributed *away from* high-levy districts. A null for McCleary is
 consistent with progressive finance reform working elsewhere.
 
-**It cannot** evaluate the article's actual claim — that Washington's weak
-spots are pre-K access and college completion, neither of which the
-constitutional guarantee covers. That is a separate design, and the outcome
-data for it is worse.
+**It cannot** evaluate what Bazzaz identifies as Washington's actual weak
+spots — preschool access and postsecondary completion
+[@bazzaz2026paramount], neither of which the constitutional guarantee covers.
+Those need a different design, and the outcome data for them is worse. It is
+worth sitting with the possibility that the paramount-duty clause has done
+exactly what it was read to require, funding K–12 to the point where marginal
+dollars there buy little, while the parts of a child's education with the
+weakest measured results are the parts the clause never reached.
 
 ## Reproducing
 
