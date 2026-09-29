@@ -1,6 +1,6 @@
 # Next steps
 
-> **Status:** OPEN — written 2026-09-29 at the end of the session that responded to Seattle Times installment 2. Nothing below is started. Not rendered (not in `_quarto.yml`'s render list).
+> **Status:** SUPERSEDED — 2026-09-29, items moved to beads (`bd list`, prefix `roi-`, stealth mode so `.beads/` stays out of the public repo). Kept for the reasoning behind each item.
 
 ## Where things stand (2026-09-29)
 

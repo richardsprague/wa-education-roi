@@ -89,6 +89,11 @@ public; never commit or publish them). Read these instead of re-fetching;
 seattletimes.com returns 403 to WebFetch, and Exa's fetch works. Currently:
 `superville-2026-09-29-education-spending.md` (installment 2, cited as
 `superville2026spending`). Installment 1 (`bazzaz2026paramount`) was not saved.
+Installment 2's four Datawrapper charts are saved beside it as
+`st-chart-<id>.csv`, pulled from `datawrapper.dwcdn.net/<id>/<ver>/dataset.csv`:
+`77rMl` total real revenue 2012-13..2024-25 (OSPI), `xh7Fk` NCES per-pupil
+spending 2010-11..2023-24 (no inflation note, so assume nominal), `64oDu` state
+ranking 2023-24 (NCES), `OvD7c` real per-pupil by category 2018-19..2024-25 (OSPI).
 
 **Start here when resuming:** `notes/next-steps.md` — current state of the
 uncommitted work and the prioritized research plan.
