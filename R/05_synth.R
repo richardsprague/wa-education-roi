@@ -103,24 +103,41 @@ synth_inference <- function(sc) {
   )
 }
 
-#' Run the full estimation for both the outcome and the first stage.
-run_all <- function(panel) {
-  cli::cli_h2("Outcome: NAEP grade 8 math")
-  sc_score <- fit_synth(panel, "score")
-
+#' First stage: synthetic control on real revenue per pupil.
+#'
+#' @param place_adjust TRUE (the main specification) uses rev_pp_real as built
+#'   by deflate_pp(): CPI-U and the place index. FALSE is a sensitivity check
+#'   that deflates by CPI-U only. The treatment was largely teacher salaries,
+#'   and a wage-sensitive place index partly deflates the treatment away, so
+#'   the CPI-only gap bounds how much the place adjustment matters.
+fit_money <- function(panel, place_adjust = TRUE) {
   ## First stage. F-33 coverage stops at 2020 and align_finance_to_naep()
   ## cannot carry it as far as NAEP 2022/2024 (the NA run is longer than its
   ## maxgap), so rev_pp_real is missing in those two years for every state.
   ## Restrict this fit to the years where the outcome is actually observed
   ## rather than handing NAs to the optimizer; the panel stays balanced
   ## because the missingness is all-or-nothing by year.
+  if (!place_adjust) {
+    ## Sensitivity: CPI-U only. Re-deflate from nominal so the place index
+    ## (RPP or CWIFT) drops out; the time deflator is unchanged.
+    panel <- dplyr::mutate(panel, rev_pp_real = rev_pp * time_deflator)
+  }
   money_panel <- dplyr::filter(panel, !is.na(rev_pp_real))
   money_years <- sort(unique(money_panel$year))
-  cli::cli_h2("First stage: real cost-adjusted revenue per pupil")
+  cli::cli_h2(if (place_adjust) "First stage: real cost-adjusted revenue per pupil"
+              else "First stage (sensitivity): CPI-U-only real revenue per pupil")
   cli::cli_alert_info(
     "Restricted to {min(money_years)}-{max(money_years)} (finance coverage)."
   )
-  sc_money <- fit_synth(money_panel, "rev_pp_real")
+  fit_synth(money_panel, "rev_pp_real")
+}
+
+#' Run the full estimation for both the outcome and the first stage.
+run_all <- function(panel) {
+  cli::cli_h2("Outcome: NAEP grade 8 math")
+  sc_score <- fit_synth(panel, "score")
+
+  sc_money <- fit_money(panel)
 
   list(score = sc_score, money = sc_money)
 }

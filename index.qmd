@@ -538,6 +538,16 @@ money_gap  <- synth_effects(fits$money) |>
   tibble::deframe()
 money_2019 <- money_gap[["2019"]]
 
+## Sensitivity: CPI-U only, no place deflator. The treatment was mostly teacher
+## pay, and a wage-sensitive place index partly deflates it away; this bounds
+## how much. fit_money(place_adjust = FALSE) in R/05_synth.R.
+fit_money_cpi  <- fit_money(panel, place_adjust = FALSE)
+money_cpi_gap  <- synth_effects(fit_money_cpi) |>
+  dplyr::filter(time_unit >= TREAT_YEAR) |>
+  dplyr::select(time_unit, gap) |>
+  tibble::deframe()
+money_cpi_rank <- synth_inference(fit_money_cpi)$rank
+
 ## Post-treatment score gaps through 2019, as signed strings for the prose.
 score_gaps_2019 <- synth_effects(fits$score) |>
   dplyr::filter(time_unit >= TREAT_YEAR, time_unit <= 2019) |>
@@ -570,7 +580,11 @@ dollars — a divergence that ranks 4th of 40 units against placebo, with
 pre-treatment tracking inside $35. The common objection that McCleary was
 merely a levy swap, moving the same dollars from local to state ledgers, does
 not survive the correction. Real resources per student rose, substantially,
-relative to what would otherwise have happened.
+relative to what would otherwise have happened. Dropping the
+cost-of-living adjustment, which partly nets out the teacher raises that made
+up most of the treatment, and deflating by CPI-U alone widens the 2019 gap to
+$`r formatC(round(money_cpi_gap[["2019"]]), format = "d", big.mark = ",")`, so
+the cost-adjusted figure is the conservative one.
 
 **The achievement gain is absent.** Washington's grade 8 math scores diverge
 from synthetic Washington by an average of
