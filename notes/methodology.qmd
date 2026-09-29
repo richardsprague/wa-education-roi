@@ -76,6 +76,48 @@ automatically. Expect the adjustment to be larger under CWIFT than under RPP,
 because Puget Sound tech wages pull teacher-comparable wages up faster than they
 pull the consumption basket up.
 
+```{r}
+#| label: deflator-bound
+#| include: false
+fmt_usd <- function(x) paste0("$", formatC(round(x), format = "d", big.mark = ","))
+post_gaps <- function(sc) {
+  synth_effects(sc) |>
+    dplyr::filter(time_unit >= TREAT_YEAR) |>
+    dplyr::select(time_unit, gap) |>
+    tibble::deframe()
+}
+fit_main    <- fit_money(panel)
+fit_cpi     <- fit_money(panel, place_adjust = FALSE)
+gap_main    <- post_gaps(fit_main)
+gap_cpi     <- post_gaps(fit_cpi)
+rank_main   <- synth_inference(fit_main)$rank
+rank_cpi    <- synth_inference(fit_cpi)$rank
+n_units     <- nrow(synth_inference(fit_main)$table)
+place_name  <- if (file.exists(file.path(DIR_RAW, "cwift.csv"))) "CWIFT" else "RPP"
+wa_place    <- panel |>
+  dplyr::filter(state == TREAT_UNIT) |>
+  dplyr::distinct(year, place_index) |>
+  tibble::deframe()
+```
+
+The place deflator also cuts against the treatment itself. Most of the
+post-McCleary money went to teacher salaries. Deflating by a place index that
+climbs with the regional labor market treats part of those raises as merely
+keeping pace with local prices, which nets out some of what the state bought.
+CWIFT, a wage index, has this problem most directly; RPP has a milder version
+through housing costs. The main specification currently uses
+`r place_name`, and Washington's index rose from
+`r sprintf("%.2f", wa_place[["2011"]])` in 2011 to
+`r sprintf("%.2f", wa_place[["2019"]])` in 2019. To bound the effect,
+`fit_money(panel, place_adjust = FALSE)` in `R/05_synth.R` re-deflates revenue
+by CPI-U alone. The 2019 first-stage gap
+widens from `r fmt_usd(gap_main[["2019"]])` to `r fmt_usd(gap_cpi[["2019"]])`
+(`r sprintf("%+.0f%%", 100 * (gap_cpi[["2019"]] / gap_main[["2019"]] - 1))`),
+and Washington's placebo rank moves from `r rank_main` to `r rank_cpi` of
+`r n_units`. The cost-adjusted figure reported on the main page is therefore
+the conservative one, and switching to CWIFT would likely make it more
+conservative still.
+
 ### 5. Donor weights
 
 ```{r}

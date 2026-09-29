@@ -74,7 +74,8 @@ investments "sound."
 All three are claims about a counterfactual — what Washington's scores would
 have been without McCleary — and none of them is tested against one. The
 article does reach for other states: Washington ranks 18th in per-pupil
-spending, 27th of 38 states in math recovery since the pandemic, and
+spending (17th among states; the ranking counts the District of Columbia), 27th of 38 states in math recovery since the pandemic
+[@dewey2026recession], and
 Mississippi, which spends less, has raised its reading scores. But a ranking
 is a snapshot, not a comparison with what Washington itself would have done,
 and neither it nor the trend lines shown below can distinguish Roza's reading
@@ -287,6 +288,16 @@ be settled before the money and the scores can be compared at all:
    rather than resolved by picking the more convenient number. Nothing in the
    estimates below depends on it: the outcome model uses NAEP scores only, and
    the first stage uses total revenue, where the sources agree.
+
+   F-33 stops at 2020, but little happens after that. OSPI's
+   inflation-adjusted total for Washington's K–12 revenue rose from $13.4
+   billion in 2012–13 to $20.2 billion in 2018–19, then only to $21.0 billion
+   by 2024–25 [@superville2026spending]. Nearly 90% of the growth had arrived
+   by the 2019 NAEP administration. Those are totals rather than per-pupil
+   figures, but the timing is the point: 2019 is when the increase was
+   complete, not a midpoint. NCES's per-pupil spending series, charted in the
+   same article, rose 49.1% from 2010–11 to 2018–19, a third source close to
+   the Research Council's 49.7%.
 
 2. **What were those dollars worth?** Nominal per-pupil growth has to be
    deflated twice: once for inflation, once for the fact that Puget Sound labor
@@ -661,13 +672,136 @@ but the precise gap in any given year is not.
 
 **2022 and 2024 are pandemic-contaminated.** Both Washington and its synthetic
 fall sharply; the negative gaps in those years should not be read as McCleary
-failing. 2019 is the last clean post-treatment observation, and it is also the
+failing. Washington's fall likely has an extra cause, which is Pedersen's point.
+In January 2021 fewer than 20% of its K–12 students were attending school in
+person in any form, one of five states that low, while 15 states were above
+90% [@burbio2021splits]. Over the whole 2020–21 year, 58% of Washington
+students were in districts with very low access to in-person instruction
+[@csdh2022washington]. 2019 is the last clean post-treatment observation, and it is also the
 year the money peaked.
 
 **The test's power comes from the placebo distribution, not from theory.** The
 5.5-point floor above is an empirical property of this donor pool and this
 panel length, not a general statement about synthetic control.
 :::
+
+## The students the money was meant to reach
+
+```{r}
+#| label: subgroups
+#| include: false
+source(here::here("R", "07_subgroups.R"))
+sub <- run_subgroups(SUBGROUPS[c("hispanic", "nslp")])
+sg  <- split(sub, sub$label)
+pts <- function(x) sprintf("%+.1f", x)
+```
+
+Reykdal's own explanation for flat scores is that the money was not enough for
+the students who need it most, those in high-poverty communities, and he puts
+the remedy at another $1 billion a year. Braun's is that the Learning
+Assistance Program, the state's categorical money for struggling students, is
+not always used as intended [@superville2026spending]. Both are claims about
+*who* the money reached, and a statewide mean can hide exactly that. So the
+same synthetic control was rerun on two NAEP subgroup means for grade 8 math:
+Hispanic students (23% of Washington's test-takers in 2019, the largest group
+after White students) and students eligible for the National School Lunch
+Program. Both series are checked against the published 2019 NCES state
+snapshots before use.
+
+```{r}
+#| label: tbl-subgroups
+#| tbl-cap: "Grade 8 math synthetic control by subgroup, 2019. Detection floor and predicted effect as in the statewide analysis above."
+sub |>
+  dplyr::transmute(
+    Group = c(hispanic = "Hispanic", nslp = "Lunch-eligible")[label],
+    Donors = n_donors,
+    `Revenue gap 2019` = dollars(money_2019),
+    `Score gap 2019` = pts(gap_2019),
+    `Placebo rank` = paste(rank, "of", n_units),
+    `Detection floor` = sprintf("%.1f", detect_floor),
+    `Predicted (J&M)` = sprintf("%.1f", jm_pred_2019)
+  ) |>
+  knitr::kable(align = "lrrrrrr")
+```
+
+Neither subgroup diverges. Hispanic students' post-treatment gaps run
+`r paste(pts(unlist(sg$hispanic[c("gap_2013", "gap_2015", "gap_2017", "gap_2019")])), collapse = ", ")`
+points from 2013 to 2019, ranking `r sg$hispanic$rank` of
+`r sg$hispanic$n_units` against placebo (*p* = `r sprintf("%.2f", sg$hispanic$p_value)`).
+The 2019 shortfall is the largest in either series, but untreated states
+produce gaps that size routinely. Lunch-eligible students track their synthetic
+within two points throughout (`r paste(pts(unlist(sg$nslp[c("gap_2013", "gap_2015", "gap_2017", "gap_2019")])), collapse = ", ")`;
+rank `r sg$nslp$rank` of `r sg$nslp$n_units`).
+
+This does not rescue either side, for the same reason as before. The detection
+floors (`r sprintf("%.1f", sg$hispanic$detect_floor)` and
+`r sprintf("%.1f", sg$nslp$detect_floor)` points) again sit above what the
+literature predicts (`r sprintf("%.1f", sg$hispanic$jm_pred_2019)` and
+`r sprintf("%.1f", sg$nslp$jm_pred_2019)`). Subgroup means are noisier, and the
+Hispanic series loses `r length(donor_states(panel)) - sg$hispanic$n_donors` donor states to
+suppressed small-sample cells. The prediction is also, if anything, low, since
+the meta-analysis finds larger effects for low-income students. Two further
+limits apply:
+
+- **The dose is still statewide.** The revenue gap in the table is Washington's
+  per-pupil increase over the subgroup's synthetic, not dollars that reached
+  those students. Reykdal's and Braun's claims are precisely that the two
+  differ, and nothing in state-level finance data can say by how much.
+- **"Lunch-eligible" changed meaning at the treatment date.** The Community
+  Eligibility Provision, available nationally from 2014-15, lets high-poverty
+  schools serve every student free without individual applications, which
+  changes who NAEP records as eligible, differently by state. OSPI reports
+  450,000 more Washington students with free-meal access since 2017
+  [@superville2026spending]. Treat the lunch-eligible row as the weaker of the
+  two.
+
+What the subgroup runs do rule out is the strong form of the targeting
+argument: that the money produced a large, visible gain for disadvantaged
+students which the statewide average concealed. There is none at this
+resolution.
+
+## Grade 4 reading, and Mississippi
+
+```{r}
+#| label: reading4
+#| include: false
+r4  <- split(run_reading4(), c("with_ms", "without_ms"))
+pct <- function(x) scales::percent(x, accuracy = 0.1)
+```
+
+Bellevue's Aramaki points to Mississippi, which spends less than Washington and
+has raised its NAEP reading scores [@superville2026spending]. That is a grade 4
+reading story, and the analysis above is grade 8 math, so it cannot speak to
+it. The same design was rerun on grade 4 reading, the subject and grade where
+Mississippi's gains are measured. Mississippi was dropped from the donor pool,
+since its reading reforms are a concurrent treatment of their own.
+
+The result is the closest thing to a signal anywhere in this analysis, and it
+is still not one. Synthetic Washington tracks the real one tightly before 2013
+(pre-period RMSPE `r sprintf("%.2f", r4$without_ms$pre_rmspe)` points), and the
+post-treatment gaps through 2019 run
+`r paste(pts(unlist(r4$without_ms[c("gap_2013", "gap_2015", "gap_2017", "gap_2019")])), collapse = ", ")`.
+Washington ranks `r r4$without_ms$rank` of `r r4$without_ms$n_units` against
+placebo (*p* = `r sprintf("%.2f", r4$without_ms$p_value)`), because a good
+pre-period fit makes even a modest divergence stand out. But the divergence is
+a single 2015 bump that is gone by 2019, the year the money peaked, which is
+the opposite of what a funding effect should look like. The detection floor is
+`r sprintf("%.1f", r4$without_ms$detect_floor)` points against a literature
+prediction of `r sprintf("%.1f", r4$without_ms$jm_pred_2019)`.
+
+Mississippi does not change the comparison either way. It carries
+`r pct(r4$with_ms$ms_weight)` of the weight when allowed in the pool (synthetic
+Washington's grade 4 reading is mostly
+`r state.name[match(r4$with_ms$top_donor, state.abb)]`,
+at `r pct(r4$with_ms$top_weight)`), and with it included the rank is
+`r r4$with_ms$rank` of `r r4$with_ms$n_units`. Aramaki's point is about
+policy, not money: a state that decided every child would read. The same
+Stanford–Harvard report that ranks Washington's recovery lists it among ten
+states that had adopted fewer than seven of the "science of reading" policy
+elements by January 2024. None of the ten improved in reading from 2022 to
+2025; Mississippi, with more, did [@dewey2026recession]. Nothing here tests
+that. What it shows is that Washington's added money did not buy a
+detectable reading gain.
 
 ## What this can and cannot settle
 
@@ -701,9 +835,10 @@ the honest answer from the best comparable measure we have is that the largest
 school-funding increase in the state's history has not yet produced evidence
 of it — though, on the evidence above, not proof of its absence either. The
 second installment of *Educating Washington* reaches the same impasse from
-the trend lines alone [@superville2026spending]. The way out is not a better
-state-level average but a closer look at the students the money was meant to
-reach.
+the trend lines alone [@superville2026spending]. Looking at the students the money was
+meant to reach, above, does not break the impasse either: state-level subgroup
+means carry the same power problem. What could is district-level data, where
+the levy cap made the size of the increase vary from one district to the next.
 
 ## Reproducing
 

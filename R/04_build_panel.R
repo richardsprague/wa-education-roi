@@ -33,8 +33,10 @@ align_finance_to_naep <- function(fin, naep_years = NAEP_YEARS) {
     dplyr::filter(year %in% naep_years)
 }
 
-build_analysis_panel <- function(refresh = FALSE) {
-  naep <- build_naep_panel(refresh = refresh) |>
+build_analysis_panel <- function(refresh = FALSE, group = OUTCOME_GROUP,
+                                 subject = OUTCOME_SUBJECT, grade = OUTCOME_GRADE) {
+  naep <- build_naep_panel(refresh = refresh, group = group,
+                           subject = subject, grade = grade) |>
     dplyr::rename(state = jurisdiction) |>
     dplyr::filter(!state %in% NON_STATES)
 

@@ -62,6 +62,14 @@ NAEP_SUBSCALE <- c(mathematics = "MRPCM", reading = "RRPCM")
 OUTCOME_SUBJECT <- "mathematics"
 OUTCOME_GRADE   <- 8L
 
+## Outcome population: a NAEP Data Service reporting variable and one of its
+## varValue codes. TOTAL/"1" is all students. Subgroups used so far:
+##   SLUNCH3 "1" = eligible for the National School Lunch Program
+##   SDRACE  "3" = Hispanic
+## Small donor states suppress many subgroup cells; require_balanced() drops any
+## state missing a year, so check the donor count in the build output.
+OUTCOME_GROUP <- c(variable = "TOTAL", value = "1")
+
 ## ---- Reproducibility ------------------------------------------------------
 SEED <- 20260920L
 set.seed(SEED)

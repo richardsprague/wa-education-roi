@@ -22,24 +22,29 @@ anchors <- readr::read_csv(
 )
 
 test_that("NAEP API matches published figures within rounding tolerance", {
-  subjects <- unique(anchors[c("subject", "grade")])
+  ## group is "<NAEP variable>:<varValue>", e.g. TOTAL:1, SDRACE:3, SLUNCH3:1.
+  subjects <- unique(anchors[c("subject", "grade", "group")])
 
   for (i in seq_len(nrow(subjects))) {
     subj  <- subjects$subject[i]
     grade <- subjects$grade[i]
+    grp   <- subjects$group[i]
+    var_val <- strsplit(grp, ":", fixed = TRUE)[[1]]
 
-    want <- dplyr::filter(anchors, subject == subj, grade == !!grade)
+    want <- dplyr::filter(anchors, subject == subj, grade == !!grade, group == grp)
 
     got <- fetch_naep(
       subject = subj,
       grade = grade,
       jurisdictions = unique(want$jurisdiction),
-      years = unique(want$year)
+      years = unique(want$year),
+      variable = var_val[1],
+      value = var_val[2]
     )
 
     joined <- dplyr::inner_join(
       want, got,
-      by = c("jurisdiction", "year", "subject", "grade"),
+      by = c("jurisdiction", "year", "subject", "grade", "group"),
       suffix = c("_published", "_api")
     )
 

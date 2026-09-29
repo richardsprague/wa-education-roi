@@ -26,10 +26,13 @@ suppressPackageStartupMessages({
 #' @param panel analysis panel from build_analysis_panel()
 #' @param outcome_col bare column name of the outcome
 #' @param treat_year treatment onset
+#' @param ... passed to tidysynth::generate_weights() (e.g. margin_ipop), for
+#'   the rare fit where kernlab's default tolerances hit a singular system.
 fit_synth <- function(panel,
                       outcome_col = "score",
                       treat_year = TREAT_YEAR,
-                      donors = NULL) {
+                      donors = NULL,
+                      ...) {
 
   if (is.null(donors)) donors <- donor_states(panel)
 
@@ -80,7 +83,7 @@ fit_synth <- function(panel,
   }
 
   out |>
-    tidysynth::generate_weights(optimization_window = pre_years) |>
+    tidysynth::generate_weights(optimization_window = pre_years, ...) |>
     tidysynth::generate_control()
 }
 

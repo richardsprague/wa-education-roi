@@ -26,10 +26,15 @@ NAEP_BASE <- "https://www.nationsreportcard.gov/Dataservice/GetAdhocData.aspx"
 #' @param jurisdictions character vector of NAEP jurisdiction codes.
 #'   Two-letter USPS codes for states; "NP" = national public.
 #' @param years numeric vector of assessment years
+#' @param variable NAEP reporting variable ("TOTAL", "SLUNCH3", "SDRACE", ...)
+#' @param value varValue code to keep within `variable`, or NULL for all.
+#'   Suppressed cells (isStatDisplayable == 0, served as 999) are always dropped.
 fetch_naep <- function(subject = OUTCOME_SUBJECT,
                        grade = OUTCOME_GRADE,
                        jurisdictions,
-                       years = NAEP_YEARS) {
+                       years = NAEP_YEARS,
+                       variable = OUTCOME_GROUP[["variable"]],
+                       value = OUTCOME_GROUP[["value"]]) {
 
   stopifnot(subject %in% names(NAEP_SUBSCALE))
 
@@ -39,7 +44,7 @@ fetch_naep <- function(subject = OUTCOME_SUBJECT,
       subject      = subject,
       grade        = grade,
       subscale     = unname(NAEP_SUBSCALE[[subject]]),
-      variable     = "TOTAL",
+      variable     = variable,
       jurisdiction = paste(jurisdictions, collapse = ","),
       stattype     = "MN:MN",
       Year         = paste(years, collapse = ",")
@@ -71,13 +76,20 @@ fetch_naep <- function(subject = OUTCOME_SUBJECT,
   ## the function arguments of the same name.
   subj <- subject
   grd  <- as.integer(grade)
+  val  <- value
 
-  tibble::as_tibble(res) |>
+  res <- tibble::as_tibble(res)
+  if (variable != "TOTAL") require_cols(res, c("varValue", "isStatDisplayable"), "NAEP Data Service")
+  if ("isStatDisplayable" %in% names(res)) res <- dplyr::filter(res, isStatDisplayable == 1)
+  if (!is.null(val) && "varValue" %in% names(res)) res <- dplyr::filter(res, varValue == val)
+
+  res |>
     dplyr::transmute(
       jurisdiction = as.character(jurisdiction),
       year         = as.integer(year),
       subject      = subj,
       grade        = grd,
+      group        = if ("varValue" %in% names(res)) paste0(variable, ":", varValue) else "TOTAL:1",
       score        = suppressWarnings(as.numeric(value)),
       error_flag   = if ("errorFlag" %in% names(res)) errorFlag else NA
     ) |>
@@ -86,11 +98,17 @@ fetch_naep <- function(subject = OUTCOME_SUBJECT,
 }
 
 #' All 50 states plus national public, for the configured outcome.
-build_naep_panel <- function(refresh = FALSE) {
+#'
+#' @param group c(variable =, value =) as in OUTCOME_GROUP.
+build_naep_panel <- function(refresh = FALSE, group = OUTCOME_GROUP,
+                             subject = OUTCOME_SUBJECT, grade = OUTCOME_GRADE) {
   juris <- c(state.abb, "NP")
+  group_tag <- if (group[["variable"]] == "TOTAL") "" else
+    sprintf("_%s%s", group[["variable"]], group[["value"]])
   cache_rds(
-    key = sprintf("naep_%s_g%d", OUTCOME_SUBJECT, OUTCOME_GRADE),
-    expr = fetch_naep(jurisdictions = juris),
+    key = sprintf("naep_%s_g%d%s", subject, grade, group_tag),
+    expr = fetch_naep(subject = subject, grade = grade, jurisdictions = juris,
+                      variable = group[["variable"]], value = group[["value"]]),
     refresh = refresh
   )
 }

@@ -61,6 +61,9 @@ Numbered scripts are a strict dependency chain, each sourcing its predecessors:
 - `05_synth.R` — `tidysynth` fit with placebo generation. Two fits: the outcome
   (NAEP score) and the first stage (`rev_pp_real`). Inference is placebo RMSPE
   ranking, deliberately, because five pre-periods make raw gap fit cheap.
+- `07_subgroups.R` — reruns outcome + first stage per NAEP subgroup
+  (`OUTCOME_GROUP` / `build_analysis_panel(group =)`). Retries a singular
+  kernlab fit once with `margin_ipop = 1e-3` and reports that it did.
 - `06_plots.R` — `theme_roi()` and `PAL`. Two categorical colors only (treated
   blue, synthetic orange); donors are undifferentiated gray by design.
 
@@ -88,7 +91,8 @@ responds to lives in `sources/` (gitignored — copyrighted, and this repo is
 public; never commit or publish them). Read these instead of re-fetching;
 seattletimes.com returns 403 to WebFetch, and Exa's fetch works. Currently:
 `superville-2026-09-29-education-spending.md` (installment 2, cited as
-`superville2026spending`). Installment 1 (`bazzaz2026paramount`) was not saved.
+`superville2026spending`) and `bazzaz-2026-09-20-paramount-duty.md`
+(installment 1, `bazzaz2026paramount`; its chart IDs weren't recoverable, so no CSVs).
 Installment 2's four Datawrapper charts are saved beside it as
 `st-chart-<id>.csv`, pulled from `datawrapper.dwcdn.net/<id>/<ver>/dataset.csv`:
 `77rMl` total real revenue 2012-13..2024-25 (OSPI), `xh7Fk` NCES per-pupil
