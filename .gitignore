@@ -26,3 +26,6 @@ renv/staging/
 .DS_Store
 
 **/*.quarto_ipynb
+
+# Full-text copies of copyrighted source articles (local reference only)
+sources/

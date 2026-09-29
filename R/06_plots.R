@@ -179,3 +179,60 @@ plot_spending <- function(panel, states = c("WA"), value_cols = c("rev_pp", "rev
     ) +
     theme_roi()
 }
+
+#' Figure 0: the money and the results on one page, before any modelling.
+#'
+#' Top panel: Washington real, cost-adjusted revenue per pupil. Bottom panel:
+#' Washington's NAEP grade 8 math score against the national public average.
+#' `naep` is the unfiltered output of build_naep_panel(), which still carries
+#' the "NP" (national public) jurisdiction that the analysis panel drops.
+plot_money_vs_results <- function(panel, naep, treat = TREAT_UNIT) {
+  money <- panel |>
+    dplyr::filter(state == treat, !is.na(rev_pp_real)) |>
+    dplyr::transmute(year, series = "Washington", value = rev_pp_real,
+                     facet = "Real revenue per pupil (2019 dollars, cost-adjusted)")
+
+  scores <- naep |>
+    dplyr::rename(state = jurisdiction) |>
+    dplyr::filter(state %in% c(treat, "NP"), year >= PRE_START) |>
+    dplyr::transmute(year,
+                     series = dplyr::if_else(state == treat, "Washington", "National public"),
+                     value = score,
+                     facet = "NAEP grade 8 mathematics, mean scale score")
+
+  d <- dplyr::bind_rows(money, scores) |>
+    dplyr::mutate(facet = factor(facet, levels = c(
+      "Real revenue per pupil (2019 dollars, cost-adjusted)",
+      "NAEP grade 8 mathematics, mean scale score")))
+
+  labs_last <- d |> dplyr::group_by(facet, series) |> dplyr::slice_max(year, n = 1)
+
+  ggplot(d, aes(year, value, colour = series)) +
+    treatment_rule() +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2.2) +
+    ggrepel::geom_text_repel(
+      data = labs_last, aes(label = series),
+      hjust = 0, direction = "y", nudge_x = 0.6, size = 3.2,
+      segment.colour = NA, show.legend = FALSE
+    ) +
+    facet_wrap(~facet, ncol = 1, scales = "free_y") +
+    scale_colour_manual(values = c(
+      "Washington"      = PAL$series_1,
+      "National public" = PAL$rule
+    )) +
+    scale_y_continuous(labels = function(x) ifelse(x > 1000, scales::dollar(x), x)) +
+    scale_x_continuous(breaks = NAEP_YEARS, expand = expansion(mult = c(0.02, 0.2))) +
+    labs(
+      title = "The money went up. The scores did not.",
+      subtitle = "Washington's per-pupil resources and its grade 8 math results, 2003-2024",
+      x = NULL, y = NULL,
+      caption = paste0(
+        "Revenue: Census F-33 via Urban Institute, deflated by CPI-U and BEA Regional Price Parities; ",
+        "the finance series ends in 2019.\nScores: NAEP Data Service (NCES). The 2021 assessment was given in 2022."
+      )
+    ) +
+    theme_roi() +
+    theme(legend.position = "none",
+          strip.text = element_text(colour = PAL$ink, face = "bold", hjust = 0))
+}

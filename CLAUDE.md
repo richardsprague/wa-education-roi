@@ -80,3 +80,15 @@ chunk results under `.quarto/`.
 - Prose in `index.qmd` and `notes/methodology.qmd` states numbers inline that
   should agree with what the pipeline computes. If you change the specification,
   check the narrative text too — it is not auto-generated.
+
+## Source articles
+
+Full text of the Seattle Times *Educating Washington* pieces the analysis
+responds to lives in `sources/` (gitignored — copyrighted, and this repo is
+public; never commit or publish them). Read these instead of re-fetching;
+seattletimes.com returns 403 to WebFetch, and Exa's fetch works. Currently:
+`superville-2026-09-29-education-spending.md` (installment 2, cited as
+`superville2026spending`). Installment 1 (`bazzaz2026paramount`) was not saved.
+
+**Start here when resuming:** `notes/next-steps.md` — current state of the
+uncommitted work and the prioritized research plan.

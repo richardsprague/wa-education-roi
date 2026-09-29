@@ -18,7 +18,7 @@ fits  <- run_all(panel)
 inf   <- synth_inference(fits$score)
 
 ## Washington 2011 -> 2019 growth as the F-33 pipeline computes it, for the
-## comparison against the OSPI figures quoted in "The question".
+## comparison against the OSPI figures quoted in "Turning two facts into an estimate".
 f33 <- local({
   d <- dplyr::filter(panel, state == TREAT_UNIT, year %in% c(2011, 2019))
   pc <- function(col) 100 * (d[[col]][2] / d[[col]][1] - 1)
@@ -32,34 +32,170 @@ f33 <- local({
 })
 ```
 
-## The constitutional promise
+## The question the series asks, and the one it should
 
-Washington's constitution opens its education article with 34 words that have
-shaped the state's education policy ever since [@bazzaz2026paramount]:
+The Seattle Times has opened a series, *Educating Washington*, on the perennial
+questions of the state's schools. Its first installment asks: *Is WA meeting
+its constitutional commitment to education?* [@bazzaz2026paramount]. The
+commitment in question is the opening sentence of the constitution's education
+article:
 
 > It is the paramount duty of the state to make ample provision for the
 > education of all children residing within its borders without distinction or
 > preference on account of race, color, caste, or sex.
 
-*Paramount duty* is a legal standard, not a slogan, and since the 1970s
-Washington's courts have repeatedly found the state in breach of it. The most
-recent finding was **McCleary v. Washington** (2012), brought by a coalition of
-families, school districts, and the statewide teachers union. The state Supreme
-Court found the underfunding so severe that it held the legislature in contempt
-and **fined the state $100,000 a day for three years** until lawmakers
-appropriated the money.
+Dahlia Bazzaz's answer runs mostly through inputs. Since the Supreme Court's
+2012 decision in *McCleary v. Washington*, and the $100,000-a-day contempt
+fine that followed, K–12 has become the largest item in the state budget. It
+bought smaller classes, some of the highest teacher pay in the country, and
+per-student spending just above the national average. On that reading, yes:
+the state has met its commitment, or at least the court said so when it
+released the Legislature from its supervision in 2018.
 
-The Legislature appropriated it, and K–12 became the largest single item in
-the state budget, buying smaller class sizes, some of the highest teacher pay
-in the country, and per-student spending just above the national average.
+The series promised a second installment on "what results the state gets, and
+doesn't get, for its substantial investment," and that is the better question.
+The framers did not write "paramount duty" in order to get a budget line. They
+wrote it to get educated children. Whether the state is meeting its commitment
+is a question about results, and the constitution's spirit is the standard
+that the money is supposed to serve, not the other way around.
 
-### What the money bought
+The installment has now run [@superville2026spending]. Denisa Superville
+reports that state, local, and federal education revenue rose from $13.4
+billion in 2012–13 to more than $21 billion in 2024–25, in today's dollars,
+while NAEP reading and math scores "inched up then largely flatlined." The
+people she interviews then argue past each other. Marguerite Roza of
+Georgetown's Edunomics Lab says "we are not seeing any parallel progress in
+math and reading given the size of the investments." Superintendent Reykdal
+says the results would have been worse without the money. Senate Majority
+Leader Jamie Pedersen says there are "too many variables that changed for you
+to conclude that our funding was inadequate or a mistake," and calls the
+investments "sound."
 
-Bazzaz's survey of the results is careful and, on achievement, muted.
+All three are claims about a counterfactual — what Washington's scores would
+have been without McCleary — and none of them is tested against one. The
+article does reach for other states: Washington ranks 18th in per-pupil
+spending, 27th of 38 states in math recovery since the pandemic, and
+Mississippi, which spends less, has raised its reading scores. But a ranking
+is a snapshot, not a comparison with what Washington itself would have done,
+and neither it nor the trend lines shown below can distinguish Roza's reading
+from Reykdal's and Pedersen's. This document supplies the missing comparison,
+and a benchmark for how large the effect *should* have been.
+
+Here is what the results look like, put next to the money, before any
+statistical machinery is applied:
+
+```{r}
+#| label: fig-money-vs-results
+#| fig-cap: "Washington's real per-pupil revenue and its grade 8 math scores, 2003–2024"
+#| fig-height: 6.5
+naep_all <- build_naep_panel()
+wa_pt    <- dplyr::filter(panel, state == TREAT_UNIT)
+lead_np  <- naep_all |>
+  dplyr::filter(jurisdiction %in% c(TREAT_UNIT, "NP")) |>
+  dplyr::select(jurisdiction, year, score) |>
+  tidyr::pivot_wider(names_from = jurisdiction, values_from = score) |>
+  dplyr::mutate(lead = .data[[TREAT_UNIT]] - NP)
+plot_money_vs_results(panel, naep_all)
+```
+
+Real, cost-adjusted revenue per student rose
+`r sprintf("%.0f%%", 100 * (wa_pt$rev_pp_real[wa_pt$year == 2019] / wa_pt$rev_pp_real[wa_pt$year == 2011] - 1))`
+between the last test before the ruling and 2019. Washington's grade 8 math
+score, on the one test that is the same in every state, ended that period
+`r sprintf("%.1f", wa_pt$score[wa_pt$year == 2011] - wa_pt$score[wa_pt$year == 2019])`
+points lower than it began it, and its lead over the national average
+slipped from `r sprintf("%.1f", lead_np[lead_np$year == 2011, "lead"])` points
+to `r sprintf("%.1f", lead_np[lead_np$year == 2019, "lead"])`. Then came the
+pandemic, which took every state down together.
+
+Two lines on a chart are not an estimate. The rest of this document is about
+turning them into one: what Washington's scores *would* have been without the
+McCleary money, and whether the difference is distinguishable from noise. The
+short answer is that it is not. But first it is worth being precise about what
+the court actually decided, because a lot of the public argument assumes it
+decided something it did not.
+
+## What McCleary actually held
+
+The Supreme Court gets to say what the constitution means, and nothing here
+disputes that. But it is worth reading what the court actually said, because
+the popular memory of McCleary is that the court found Washington's children
+were being shortchanged and ordered the state to fix it. The opinion is
+narrower than that, in a way that matters for how the money should be judged.
+
+**The court defined the duty by inputs, not outcomes.** The 2012 opinion
+[@McCleary2012] built on a 1978 case, *Seattle School District v. State*
+[@SeattleSchoolDistrict1978], which read "ample" to mean "liberal, unrestrained,
+without parsimony, fully, sufficient," and read "education" as broad
+opportunity: preparing children to "compete adequately in our open political
+system, in the labor market, or in the market place of ideas." McCleary
+affirmed the trial court's gloss that ample means "considerably more than just
+adequate," then stated its own holding in one sentence:
+
+> The "education" required under article IX, section 1 consists of the
+> opportunity to obtain the knowledge and skills described in *Seattle School
+> District*, ESHB 1209, and the EALRs. It does not reflect a right to a
+> guaranteed educational outcome.
+
+The court went further, noting "the inescapable truth that certain factors
+critical to a student's achievement are simply outside the State's control."
+So to the question of whether McCleary rests on some assumption that every
+child starts equal and only money separates them: no. The court expressly
+declined to make results the standard. Its holding is about *opportunity*, and
+opportunity is measured in what the state provides.
+
+**The finding of underfunding was an accounting finding.** The Legislature had
+defined its own "program of basic education." The trial record showed the
+state's allocation formulas paid districts less than that program actually
+cost: utilities funded at $115 per student against $252 actually spent,
+instructional salaries about $8,000 below what districts paid, and so on.
+Districts filled the gap with local levies. The court's logic was that "full
+funding is whatever the Legislature says it is" amounts to "little more than a
+tautology," and that levies, being subject to local votes and local property
+wealth, are not the "regular and dependable" revenue the constitution
+requires. That is the whole violation: the state was not paying the cost of
+the program it had itself defined, and was relying on an impermissible source
+to cover the difference.
+
+**Equity enters only through the levy analysis.** The constitution's phrase
+"without distinction or preference on account of race, color, caste, or sex"
+is recited in the opinion but never applied. The court's equity concern was
+between *districts*: property-rich districts can raise more per levy dollar
+than property-poor ones. There is no analysis of racial or economic achievement
+gaps, and no WASL pass rate or graduation figure anywhere in the part of the
+opinion that finds the violation. The achievement statistics that do appear
+are quoted from legislative reports as background.
+
+**Compliance was judged the same way.** From the 2014 contempt finding
+[@McCleary2014Contempt] through the $100,000-a-day sanction
+[@McCleary2015Sanctions] to the order that ended the case
+[@McCleary2018Termination], the court "measured progress specifically according
+to the areas of basic education identified in ESHB 2261 and the implementation
+benchmarks established by SHB 2776": transportation, materials and operating
+costs, all-day kindergarten, K–3 class size, and salaries. When it released the
+Legislature in June 2018, it did so because the state "has now complied with
+this court's orders to fully implement the State's new program of basic
+education," while noting in the same paragraph that the plaintiffs "still
+dispute the constitutional adequacy of the funding formulas." No outcome
+measure appears in any of the seven orders.
+
+So the answer to the Times's question, *is Washington meeting its
+constitutional commitment*, has a legal answer and a substantive one. The
+legal answer is yes, as of 2018, because the court defined the commitment as
+funding a statutory program and the program got funded. The court was candid
+that it had done nothing more: it "has not purported to take over public
+education" [@McCleary2017Order]. The substantive answer, the one the framers
+would have cared about and the one the court explicitly left to the
+Legislature and the public, is whether the children are better educated. That
+is what the rest of this document tries to measure.
+
+### The results Bazzaz reports
+
+Bazzaz's own survey of outcomes is careful and, on achievement, muted.
 Washington performs slightly ahead of the nation in NAEP reading and roughly at
 the national average in math, with scores below pre-pandemic levels here as
-everywhere. The state's own goal — 90% of students proficient on its state
-assessments — sits well above the roughly 70% at grade level in reading and
+everywhere. The state's own goal, 90% of students proficient on its state
+assessments, sits well above the roughly 70% at grade level in reading and
 two-thirds in math. Underneath the averages are sharp disparities: only 42% of
 Washington's Latino fourth graders reach NAEP's "basic" level in reading.
 
@@ -68,20 +204,15 @@ rather than a program, and puts the open question plainly:
 
 > Money really does matter. But how you deploy it matters too.
 
-That is the question this project takes up. The Seattle Times piece is the
-first in a series that promises to examine "what results the state gets — and
-doesn't get — for its substantial investment." **This repo is an attempt to
-answer one narrow, quantitative slice of that question with an explicit
-counterfactual rather than a before-and-after comparison.**
-
-The narrowing matters. This analysis can say
-something about grade 8 mathematics, because NAEP provides a comparable
+That is the question this project takes up, with an explicit counterfactual
+rather than a before-and-after comparison. The narrowing matters. This analysis
+can say something about grade 8 mathematics, because NAEP provides a comparable
 measure across states. It cannot evaluate the two areas where Bazzaz finds
-Washington genuinely lagging — preschool access, where the state ranks 7th in
+Washington genuinely lagging: preschool access, where the state ranks 7th in
 per-child spending but 34th in enrollment, and postsecondary completion, where
 its six-year rate of 56.5% is among the nation's worst. Both fall outside the
-constitutional guarantee, and neither has outcome data that supports this
-design.
+constitutional guarantee as the court read it, and neither has outcome data
+that supports this design.
 
 ## What NAEP measures
 
@@ -116,7 +247,7 @@ place to look for an effect of a school-funding change. Scale scores move
 slowly: differences of two or three points between states are small, and the
 gap the analysis is trying to detect is of that order.
 
-## The question
+## Turning two facts into an estimate
 
 Between the 2009–11 and 2019–21 biennia, Washington's state spending on K–12
 education rose 110%, while all other state spending rose 52% [@wrc2020mccleary].
@@ -125,8 +256,9 @@ Educational Progress did not improve relative to the rest of the country. In
 grade 8 mathematics Washington led the national public average by 5 points in
 2003 and by 2 points in 2024.
 
-Those two facts are usually deployed as a rhetorical pair. They should not be.
-Three things have to be settled before they can be compared at all:
+Those two facts are usually deployed as a rhetorical pair, and the chart
+above invites exactly that reading. It should be resisted. Three things have to
+be settled before the money and the scores can be compared at all:
 
 1. **How much money actually reached schools per student?** The 110% figure
    measures the state budget line. McCleary's central mechanism was a levy
@@ -400,14 +532,34 @@ wa_abs_gap <- synth_effects(fits$score) |>
 placebo_median <- stats::median(placebo_gaps$mean_abs_gap)
 detect_bound   <- stats::quantile(placebo_gaps$mean_abs_gap, 0.95)
 
-money_2019 <- synth_effects(fits$money) |>
-  dplyr::filter(time_unit == 2019) |>
-  dplyr::pull(gap)
+money_gap  <- synth_effects(fits$money) |>
+  dplyr::filter(time_unit >= TREAT_YEAR) |>
+  dplyr::select(time_unit, gap) |>
+  tibble::deframe()
+money_2019 <- money_gap[["2019"]]
+
+## Post-treatment score gaps through 2019, as signed strings for the prose.
+score_gaps_2019 <- synth_effects(fits$score) |>
+  dplyr::filter(time_unit >= TREAT_YEAR, time_unit <= 2019) |>
+  dplyr::pull(gap) |>
+  sprintf(fmt = "%+.1f") |>
+  paste(collapse = ", ")
+dollars <- function(x) paste0("$", formatC(round(x, -2), format = "d", big.mark = ","))
+
+## Literature benchmark: Jackson & Mackevicius (2024) meta-analysis, 0.0316 SD
+## per $1,000 per pupil sustained four years. Student-level SD of NAEP grade 8
+## math, national public, from the NAEP Data Service (stattype SD:SD), pulled
+## 2026-09-29: 36.42 in 2013, 39.82 in 2019.
+JM_SD_PER_1000 <- 0.0316
+NAEP_SD        <- c(`2013` = 36.42, `2019` = 39.82)
+predicted_pts  <- money_2019 / 1000 * JM_SD_PER_1000 * NAEP_SD
 ```
 
-**Did Washington's McCleary response buy measurable achievement? No — and the
-money did arrive, so that is a finding about the spending, not about the
-data.**
+**Did Washington's McCleary response buy measurable achievement? Not
+detectably — and the money did arrive, so that is a finding about the
+spending, not about missing data. But "not detectable" here includes the
+effect the research literature would have predicted, which is a weaker
+verdict than "no."**
 
 Two results, and they point in different directions.
 
@@ -440,21 +592,48 @@ of what untreated states produce by chance in this design. That is the
 detection floor. For scale: Washington's entire lead over the national public
 average was 5.0 points in 2003 and 1.4 points in 2024.
 
-So the honest statement has two halves, and both are firm:
+The floor only matters next to an expectation, and the school-finance
+literature supplies one. Jackson and Mackevicius's meta-analysis of US
+spending evaluations finds that $1,000 more per pupil, sustained for four
+years, raises test scores by 0.0316 standard deviations on average
+[@jackson2024expect]. (It is the same study behind the college-going figure
+Superville cites.) Applied to Washington's
+$`r formatC(round(money_2019), format = "d", big.mark = ",")` first-stage gap,
+and to the student-level spread of NAEP grade 8 math (a standard deviation of
+`r sprintf("%.1f", NAEP_SD[["2013"]])` points in 2013,
+`r sprintf("%.1f", NAEP_SD[["2019"]])` in 2019), that predicts a gain of
+**`r sprintf("%.1f", predicted_pts[["2013"]])`–`r sprintf("%.1f", predicted_pts[["2019"]])`
+scale points**.
 
-- **An effect large enough to matter in the way McCleary's advocates argued —
-  one that would have visibly moved Washington's standing against the nation —
-  is ruled out.** It is not in the data. The post-treatment gaps (+3.9, +2.6,
-  +4.1, +0.9 through 2019) are the wrong size *and* well inside the placebo
-  band.
-- **A modest effect — one or two scale points, sustained — cannot be ruled out
-  and never could have been**, with five pre-treatment periods and a biennial
-  test. If that is the size of the true effect, this design was never going to
-  find it, and neither will any other design built on state-level NAEP.
+That is below the detection floor. The effect the literature says McCleary
+should have produced is one this design could not have seen. And the
+post-treatment gaps actually observed through 2019 (`r score_gaps_2019`)
+are about that size. They are indistinguishable from placebo noise, but also
+indistinguishable from the benchmark.
 
-Undetectable at this resolution is not the same as zero, and a reader hoping
-to find McCleary vindicated here will not find that either, because there is no
-positive result to point at.
+The benchmark flatters McCleary in two ways and understates it in one. It
+assumes the full increase was in place for four years, but the first-stage
+gap was still widening in 2019 (about `r dollars(money_gap[["2015"]])` in 2015 and
+`r dollars(money_gap[["2017"]])` in 2017, before the jump to the 2019 figure), so the eighth graders tested that year
+had much less exposure than that. It also averages over reforms that
+reached poor districts first, and effects are smaller for advantaged students.
+McCleary was spread across the whole system. Against that, a statewide mean
+understates any gain that went to the students the money was least likely to
+reach.
+
+So the honest statement has two halves:
+
+- **An effect large enough to visibly move Washington's standing against the
+  nation — the kind that would settle the Roza–Reykdal argument — is ruled
+  out.** Nothing near the detection floor is in the data.
+- **The effect the research literature predicts is not ruled out, and could
+  never have been** with five pre-treatment periods, a biennial test, and a
+  single treated state. No design built on state-level NAEP means will
+  resolve it.
+
+Undetectable at this resolution is not the same as zero. Neither side in the
+Times article can claim this result: there is no positive effect to point at,
+and no evidence that the money underperformed what money usually buys.
 
 ::: {.callout-important}
 ## Three things that constrain the verdict
@@ -494,10 +673,23 @@ consistent with progressive finance reform working elsewhere.
 spots — preschool access and postsecondary completion
 [@bazzaz2026paramount], neither of which the constitutional guarantee covers.
 Those need a different design, and the outcome data for them is worse. One
-reading of all this is that the paramount-duty clause did exactly what it was
-interpreted to require, funding K–12 to the point where additional dollars
-there buy little, while the parts of a child's education with the weakest
-measured results are the parts the clause never reached.
+reading of all this is that the paramount-duty clause did exactly what the
+court interpreted it to require, funding K–12 to the point where additional
+dollars there buy little, while the parts of a child's education with the
+weakest measured results are the parts the clause never reached.
+
+Which returns to the question the Times series opened with. Whether Washington
+is meeting its constitutional commitment depends on what you take the
+commitment to be. If it is the one the court enforced, a funded statutory
+program, the state met it in 2018 and the question is closed. If it is the one
+the constitution's authors seem to have had in mind, educated children, then
+the honest answer from the best comparable measure we have is that the largest
+school-funding increase in the state's history has not yet produced evidence
+of it — though, on the evidence above, not proof of its absence either. The
+second installment of *Educating Washington* reaches the same impasse from
+the trend lines alone [@superville2026spending]. The way out is not a better
+state-level average but a closer look at the students the money was meant to
+reach.
 
 ## Reproducing
 
