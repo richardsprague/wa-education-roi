@@ -13,6 +13,7 @@ source(here::here("R", "00_config.R"))
 
 STACKS <- "https://stacks.stanford.edu/file/druid:xh833nn4025/"
 FILES  <- c("seda_admindist_long_cs_6.0.csv",
+            "seda_admindist_annualsub_cs_6.0.csv",
             "seda_codebook_admindist_6.0.xlsx",
             "SEDA_documentation_6.0.pdf")
 DEST   <- here::here("data", "raw", "seda")

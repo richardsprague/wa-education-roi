@@ -1,6 +1,6 @@
 # District-level dose-response: feasibility
 
-> **Status:** OPEN — feasibility checked 2026-09-29 for bead `roi-rij`; regionalization factor verified (§4), 2018 revision recorded (bead `roi-hc4`); SEDA 6.0 downloaded and checked (bead `roi-dhj`); no outcome estimation yet. Numbers from `scripts/district_feasibility.R`.
+> **Status:** SHIPPED — feasibility (bead `roi-rij`), 2018 factor revision (`roi-hc4`), SEDA 6.0 check (`roi-dhj`) and the narrow 2019 reduced form (`roi-lrb`, §6: null, and underpowered by construction). Numbers from `scripts/district_feasibility.R` and `scripts/district_reduced_form.R`.
 
 The public page ends by saying district data, where the levy cap made the size
 of the increase vary, is the way past the state-level power problem. This note
@@ -211,11 +211,10 @@ high-factor districts started from higher bases.
    formula in affluence. High-value districts are the Puget Sound suburbs, whose
    score trends and demographic change could differ for reasons unrelated to
    funding. District fixed effects absorb levels, not trends.
-3. **Pandemic confound.** If the high-factor metro districts also stayed
-   remote longest, which is plausible but **not yet checked**, any 2022+
-   outcome confounds the dose with closure length. The COVID-19 School Data
-   Hub has district-level 2020-21 learning-mode shares for Washington, so this
-   is checkable before relying on post-pandemic years.
+3. **Pandemic confound.** ~~Plausible but not yet checked~~ Checked (§7):
+   the high-factor metro districts did stay remote longest, with a weighted
+   correlation of −0.67 between dose and 2020-21 in-person access. Any 2022+
+   outcome confounds the dose with closure length.
 4. **Regression discontinuity is thin.** The tercile cutoffs create jumps of 6
    points, but only 93 districts have a factor above 1.00, the budget add-ons
    break sharpness, and the district housing values behind the terciles are not
@@ -244,5 +243,89 @@ downloaded. A full dose-response design is not worth building on this source.
 2. ~~Download SEDA 6.0~~ Done (§3). IDs match. The 2015–2017 window is missing
    Seattle, Spokane and most of Tacoma, which forces a choice of trend baseline
    before step 3.
-3. The narrow 2019 reduced form above, with county or ESD fixed effects to soak
-   up some regional trend.
+3. ~~The narrow 2019 reduced form~~ Done (§6): null, and too weak to have
+   seen the effect the literature predicts.
+
+## 6. The 2019 reduced form (bead `roi-lrb`)
+
+`scripts/district_reduced_form.R`. Outcome: SEDA 6.0 annual-by-subject
+district means (pooled over grades, cohort-standardized, so units are national
+student SDs). Dose: the 2018-table factor in effect for 2018-19
+(`rf_admin_2019`), in 6-point steps. Spring 2018 counts as pre-treatment,
+because the factor starts in school year 2018-19. The grade-pooled files do
+**not** fill the 2015–2017 hole: the annual pooling needs two or more grades in
+the year, so Seattle and Spokane still go from 2013 to 2018. The pre-trend
+therefore uses every available year from 2009 to 2018. Sample: districts with
+500+ tested students in 2019, which gives 130 for math and 132 for reading, 75
+of them with a factor above 1.00. Weighted by test-takers, standard errors
+clustered by county (28), county fixed effects unless noted.
+
+| Specification | Math, per step (SE) | Reading, per step (SE) |
+|---|---|---|
+| 2019 minus own 2009–2018 trend | −0.034 (0.022) | −0.023 (0.016) |
+| Same, no county FE | −0.028 (0.007) | −0.020 (0.008) |
+| Trend on 2009–2013 + 2018 only | −0.017 (0.014) | −0.006 (0.011) |
+| Change 2018 → 2019 | −0.008 (0.007) | −0.008 (0.006) |
+| Placebo: 2018 minus 2009–2017 trend | −0.066 (0.037) | −0.039 (0.024) |
+
+**Reading it:**
+
+- **No positive effect in any specification.** Every point estimate is
+  negative. With county fixed effects, none are distinguishable from zero.
+- **The trend-deviation specs fail their placebo.** High-factor districts were
+  already falling below their own trends in 2018, before any dose, and by more
+  than in 2019. The significant no-FE estimates are that regional drift (the
+  Puget Sound suburbs decelerating relative to their 2009–2013 path), not a
+  funding effect. Assignment by housing value (§5.2) shows up just as feared.
+- **The year-on-year change is the cleanest spec,** because it differences out
+  levels and needs no trend. Its 95% intervals are about [−0.022, +0.006] SD per
+  step for math and [−0.020, +0.004] for reading.
+- **The design could not have seen the predicted effect.** The first stage is
+  about $358 per pupil per step at full dose (FY2020, §4), so roughly half that
+  in 2018-19. Jackson & Mackevicius give 0.0316 SD per $1,000 *sustained four
+  years*. Even granting four years of exposure, that is about 0.006 SD per step
+  at half dose, or 0.011 at full dose. After one year it would be far smaller.
+  The upper confidence bounds sit at about the four-year prediction, so the
+  interval rules out large effects and says nothing about plausible ones.
+
+**Verdict.** This source cannot tell a benchmark-sized funding effect from zero.
+Don't cite §6 as evidence that the money did nothing. It is evidence that a
+district-dose design on pre-pandemic SEDA data can't answer the question, which
+is what §5 predicted. Also note: 12–16% of 2019 test-takers in the main sample
+(Seattle, Spokane and others) have no 2015–2017 data, so their trends rest on
+2009–2013 plus 2018.
+
+## 7. Closure length vs dose (bead `roi-5vp`)
+
+`scripts/district_closure_check.R`. Source: the COVID-19 School Data Hub
+district shares of the 2020-21 year offered in-person, hybrid and virtual
+(OSPI and DSHS monthly data, `DistrictsByShare_Washington_20221015.csv`,
+public, in gitignored `data/raw/csdh/`). Access score as in CSDH's own data
+series: 100 × in-person share + 50 × hybrid share. All 295 factor districts
+match on NCES ID. Weighted by 2020-21 enrollment.
+
+| Dose (6-point steps) | Districts | Students | Access score | Share virtual |
+|---|---|---|---|---|
+| 0 (factor 1.00) | 199 | 306,654 | 35.3 | 0.41 |
+| 1 | 33 | 228,727 | 26.1 | 0.53 |
+| 2 | 29 | 131,399 | 20.4 | 0.61 |
+| 3 | 28 | 337,662 | 12.2 | 0.76 |
+| 4 | 6 | 63,783 | 9.8 | 0.80 |
+
+Access score per dose step: −7.2 (SE 0.5) weighted, −11.7 (1.0) unweighted,
+−6.9 (0.5) for districts with 500+ students, and −2.2 (1.2) with county fixed
+effects.
+
+**Reading it:** the confound §5.3 feared holds, and it is monotone. Students
+in the top-dose districts spent about 80% of 2020-21 in virtual-only
+instruction, against 41% in unfactored districts. Most of the gradient is
+between counties (Puget Sound vs the rest). Within counties it falls to about
+a third and is marginal. County fixed effects would absorb most of it, but they
+also absorb most of the dose variation, which is regional by construction.
+
+**Verdict.** Don't fetch SEDA 2025.2 for a 2022+ district dose-response. Any
+post-pandemic score gap between high- and low-factor districts runs in the
+direction closure length predicts (more remote, lower scores), and it opposes
+the funding hypothesis. A null or negative 2022+ estimate would be
+uninterpretable. A positive one would be surprising, but no one should build a
+design on the hope of that result.
